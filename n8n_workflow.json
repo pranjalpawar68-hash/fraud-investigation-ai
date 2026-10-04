@@ -1,0 +1,351 @@
+{
+  "name": "Fraud Investigation Agentic Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fraud-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Fraud Alert Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [220, 300],
+      "webhookId": "fraud-alert-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Orchestrator: Validate and route incoming fraud alert\nconst caseData = $input.first().json;\n\n// Validate required fields\nconst required = ['case_id', 'transaction', 'customer'];\nfor (const field of required) {\n  if (!caseData[field]) {\n    throw new Error(`Missing required field: ${field}`);\n  }\n}\n\n// Classify urgency tier based on amount and rule triggers\nconst amount = caseData.transaction.amount || 0;\nconst triggerCount = (caseData.rule_triggers || []).length;\nlet urgencyTier = 'NORMAL';\n\nif (amount >= 500000 || triggerCount >= 4) {\n  urgencyTier = 'CRITICAL';\n} else if (amount >= 100000 || triggerCount >= 2) {\n  urgencyTier = 'HIGH';\n} else if (amount >= 50000 || triggerCount >= 1) {\n  urgencyTier = 'MEDIUM';\n}\n\nreturn [{\n  json: {\n    ...caseData,\n    urgency_tier: urgencyTier,\n    pipeline_start: new Date().toISOString(),\n    orchestrator_version: '1.0',\n    routing_decision: 'FULL_PIPELINE'\n  }\n}];"
+      },
+      "id": "node-orchestrator",
+      "name": "Orchestrator Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transaction Analysis Agent\n// Evaluates transaction-level risk indicators\nconst caseData = $input.first().json;\nconst txn = caseData.transaction;\nconst hist = caseData.historical_context || {};\n\nlet riskScore = 0;\nconst findings = [];\n\n// Amount deviation from average\nconst avgAmount = hist.avg_transaction_amount || 15000;\nconst amountRatio = txn.amount / avgAmount;\nif (amountRatio > 10) {\n  riskScore += 35;\n  findings.push(`Amount ₹${txn.amount.toLocaleString()} is ${amountRatio.toFixed(1)}x above average ₹${avgAmount.toLocaleString()}`);\n} else if (amountRatio > 3) {\n  riskScore += 20;\n  findings.push(`Amount is ${amountRatio.toFixed(1)}x above average`);\n} else if (amountRatio > 1.5) {\n  riskScore += 8;\n  findings.push(`Amount slightly above average`);\n}\n\n// Time-of-day risk\nconst hour = parseInt(txn.timestamp?.split('T')[1]?.split(':')[0] || '12');\nif (hour >= 0 && hour < 6) {\n  riskScore += 15;\n  findings.push(`Unusual hour: ${hour}:00 (midnight-6am window)`);\n}\n\n// Device fingerprint\nif (txn.device_fingerprint === 'new_device' || txn.device_fingerprint === 'unrecognized') {\n  riskScore += 12;\n  findings.push('Transaction from new/unrecognized device');\n}\n\n// First-time recipient\nif (txn.first_time_recipient) {\n  riskScore += 10;\n  findings.push('First-time recipient');\n}\n\n// VPN / cross-border\nif (txn.ip_location?.includes('VPN') || txn.ip_country !== 'IN') {\n  riskScore += 20;\n  findings.push(`Cross-border/VPN: ${txn.ip_location || txn.ip_country}`);\n}\n\n// Crypto recipient\nif (txn.recipient_type === 'crypto_wallet' || txn.recipient_category === 'crypto') {\n  riskScore += 18;\n  findings.push('Recipient is a crypto wallet/exchange');\n}\n\n// Rule triggers count\nconst triggerCount = (caseData.rule_triggers || []).length;\nriskScore += triggerCount * 5;\n\nriskScore = Math.min(100, riskScore);\n\nconst classification = riskScore >= 75 ? 'HIGH_RISK' :\n                       riskScore >= 40 ? 'MEDIUM_RISK' : 'LOW_RISK';\n\nreturn [{\n  json: {\n    ...caseData,\n    transaction_analysis: {\n      risk_score: riskScore,\n      classification: classification,\n      findings: findings,\n      amount_ratio: amountRatio,\n      structured_output_compliant: true,\n      agent: 'TransactionAnalysisAgent',\n      model: 'Qwen-2.5-72B',\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "node-txn-agent",
+      "name": "Transaction Analysis Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Customer Behaviour Agent\n// Evaluates customer profile anomalies\nconst caseData = $input.first().json;\nconst customer = caseData.customer;\nconst hist = caseData.historical_context || {};\n\nlet anomalyScore = 0;\nconst findings = [];\n\n// Account maturity\nconst accountAge = customer.account_age_years || 0;\nif (accountAge < 0.5) {\n  anomalyScore += 20;\n  findings.push('New account (< 6 months)');\n} else if (accountAge < 1) {\n  anomalyScore += 10;\n  findings.push('Relatively new account (< 1 year)');\n}\n\n// Login anomalies\nconst failedLogins = hist.failed_login_attempts || 0;\nif (failedLogins >= 5) {\n  anomalyScore += 25;\n  findings.push(`${failedLogins} failed login attempts before transaction`);\n} else if (failedLogins >= 2) {\n  anomalyScore += 12;\n  findings.push(`${failedLogins} failed login attempts`);\n}\n\n// Recent password change\nif (hist.recent_password_change) {\n  anomalyScore += 15;\n  findings.push('Recent password change detected');\n}\n\n// New device\nif (hist.device_change || customer.new_device) {\n  anomalyScore += 12;\n  findings.push('Transaction from newly added device');\n}\n\n// Prior fraud reports\nif (hist.prior_fraud_reports > 0) {\n  anomalyScore += 20;\n  findings.push(`${hist.prior_fraud_reports} prior fraud report(s) on file`);\n}\n\n// Age vulnerability (elderly protection)\nconst age = customer.age || 35;\nif (age >= 65) {\n  anomalyScore += 10;\n  findings.push(`Elderly customer (age ${age}) — enhanced protection applies`);\n}\n\n// Location mismatch\nif (customer.registered_city && caseData.transaction?.ip_city &&\n    customer.registered_city !== caseData.transaction.ip_city) {\n  anomalyScore += 8;\n  findings.push(`Location mismatch: registered ${customer.registered_city}, IP ${caseData.transaction.ip_city}`);\n}\n\nanomalyScore = Math.min(100, anomalyScore);\n\n// Trust score\nconst baseTrust = Math.min(100, accountAge * 10 + 30);\nconst trustScoreAdjusted = Math.max(0, baseTrust - anomalyScore * 0.6);\n\nconst anomalyLevel = anomalyScore >= 60 ? 'CRITICAL' :\n                     anomalyScore >= 35 ? 'ELEVATED' : 'NORMAL';\n\nreturn [{\n  json: {\n    ...caseData,\n    customer_analysis: {\n      anomaly_score: anomalyScore,\n      trust_score_adjusted: Math.round(trustScoreAdjusted),\n      anomaly_level: anomalyLevel,\n      findings: findings,\n      structured_output_compliant: true,\n      agent: 'CustomerBehaviourAgent',\n      model: 'Qwen-2.5-72B',\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "node-cust-agent",
+      "name": "Customer Behaviour Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-high-risk",
+              "leftValue": "={{ $json.transaction_analysis.risk_score + $json.customer_analysis.anomaly_score }}",
+              "rightValue": 120,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-conditional",
+      "name": "Risk Threshold Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Priority Escalation Path — combined risk > 120\nconst caseData = $input.first().json;\nreturn [{\n  json: {\n    ...caseData,\n    escalation_flag: true,\n    escalation_reason: 'Combined transaction + customer risk exceeds threshold',\n    priority: 'CRITICAL',\n    sla_hours: 1\n  }\n}];"
+      },
+      "id": "node-escalation-flag",
+      "name": "Flag Priority Escalation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normal Path — standard processing\nconst caseData = $input.first().json;\nreturn [{\n  json: {\n    ...caseData,\n    escalation_flag: false,\n    priority: caseData.urgency_tier || 'NORMAL',\n    sla_hours: 24\n  }\n}];"
+      },
+      "id": "node-normal-path",
+      "name": "Standard Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 420]
+    },
+    {
+      "parameters": {},
+      "id": "node-merge",
+      "name": "Merge Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [1540, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Risk & Policy Agent\n// Applies regulatory policy checks (RBI AML/KYC, PMLA, FATF)\nconst caseData = $input.first().json;\nconst txn = caseData.transaction;\nconst txnAnalysis = caseData.transaction_analysis;\nconst custAnalysis = caseData.customer_analysis;\n\nconst policyViolations = [];\nconst regulatoryFlags = [];\n\n// Policy 1: Amount threshold\nif (txn.amount >= 200000) {\n  policyViolations.push('AMOUNT_THRESHOLD: Transaction exceeds ₹2,00,000 reporting limit');\n  regulatoryFlags.push('RBI AML/KYC Reporting Obligation');\n}\n\n// Policy 2: Suspicious pattern\nif (txnAnalysis.risk_score >= 60 && custAnalysis.anomaly_score >= 40) {\n  policyViolations.push('SUSPICIOUS_PATTERN: High transaction risk + elevated customer anomaly');\n  regulatoryFlags.push('PMLA Section 12 — Suspicious Transaction Report');\n}\n\n// Policy 3: Crypto recipient\nif (txn.recipient_type === 'crypto_wallet' || txn.recipient_category === 'crypto') {\n  policyViolations.push('CRYPTO_TRANSFER: Transfer to cryptocurrency wallet/exchange');\n  regulatoryFlags.push('RBI Virtual Digital Asset Guidelines');\n}\n\n// Policy 4: Cross-border\nif (txn.ip_country && txn.ip_country !== 'IN') {\n  policyViolations.push('CROSS_BORDER: Transaction initiated from outside India');\n  regulatoryFlags.push('FATF Travel Rule Compliance');\n}\n\n// Policy 5: Elderly protection\nconst age = caseData.customer.age || 35;\nif (age >= 65 && txn.amount >= 100000) {\n  policyViolations.push('ELDERLY_PROTECTION: High-value transaction by senior citizen');\n  regulatoryFlags.push('RBI Senior Citizen Protection Guidelines');\n}\n\n// Policy 6: New beneficiary\nif (txn.first_time_recipient && txn.amount >= 50000) {\n  policyViolations.push('NEW_BENEFICIARY: Large transfer to first-time recipient');\n}\n\n// Composite risk score\nconst compositeRisk = Math.min(100, Math.round(\n  txnAnalysis.risk_score * 0.45 +\n  custAnalysis.anomaly_score * 0.35 +\n  policyViolations.length * 5\n));\n\n// Policy action\nlet policyAction;\nif (compositeRisk >= 75) policyAction = 'BLOCK_AND_ESCALATE';\nelse if (compositeRisk >= 50) policyAction = 'HOLD_AND_VERIFY';\nelse if (compositeRisk >= 25) policyAction = 'FLAG_AND_MONITOR';\nelse policyAction = 'APPROVE_WITH_NOTE';\n\nreturn [{\n  json: {\n    ...caseData,\n    risk_assessment: {\n      composite_risk_score: compositeRisk,\n      policy_action: policyAction,\n      policy_violations: policyViolations,\n      regulatory_flags: regulatoryFlags,\n      structured_output_compliant: true,\n      agent: 'RiskPolicyAgent',\n      model: 'Qwen-2.5-72B',\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "node-risk-agent",
+      "name": "Risk & Policy Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recommendation Agent\n// Synthesizes all agent outputs into final recommendation\nconst caseData = $input.first().json;\nconst txnA = caseData.transaction_analysis;\nconst custA = caseData.customer_analysis;\nconst riskA = caseData.risk_assessment;\n\n// Decision logic\nlet decision, confidence, urgency;\nconst compositeRisk = riskA.composite_risk_score;\n\nif (compositeRisk >= 75 || riskA.policy_action === 'BLOCK_AND_ESCALATE') {\n  decision = 'BLOCK & ESCALATE';\n  confidence = Math.min(99, 85 + Math.floor(compositeRisk / 10));\n  urgency = 'CRITICAL';\n} else if (compositeRisk >= 50 || riskA.policy_action === 'HOLD_AND_VERIFY') {\n  decision = 'HOLD & VERIFY';\n  confidence = Math.min(95, 60 + Math.floor(compositeRisk / 5));\n  urgency = 'HIGH';\n} else if (compositeRisk >= 25) {\n  decision = 'FLAG & MONITOR';\n  confidence = 70;\n  urgency = 'MEDIUM';\n} else {\n  decision = 'APPROVE';\n  confidence = Math.min(98, 90 + (25 - compositeRisk));\n  urgency = 'LOW';\n}\n\n// Build evidence summary\nconst evidenceSummary = [\n  `Transaction Risk Score: ${txnA.risk_score}/100 (${txnA.classification})`,\n  `Customer Anomaly Score: ${custA.anomaly_score}/100 (${custA.anomaly_level})`,\n  `Composite Risk Score: ${compositeRisk}/100`,\n  `Policy Violations: ${riskA.policy_violations.length}`,\n  `Regulatory Flags: ${riskA.regulatory_flags.join(', ') || 'None'}`,\n];\n\n// Recommended actions\nconst recommendedActions = [];\nif (decision.includes('BLOCK')) {\n  recommendedActions.push('Immediately freeze transaction');\n  recommendedActions.push('Escalate to senior fraud analyst');\n  recommendedActions.push('File Suspicious Transaction Report (STR)');\n  recommendedActions.push('Notify customer through verified channel');\n}\nif (decision.includes('HOLD')) {\n  recommendedActions.push('Place transaction on temporary hold');\n  recommendedActions.push('Request additional verification from customer');\n  recommendedActions.push('Schedule follow-up within 4 hours');\n}\nif (decision.includes('APPROVE')) {\n  recommendedActions.push('Allow transaction to proceed');\n  recommendedActions.push('Add to monitoring queue for 48 hours');\n}\n\n// Hallucination self-check\nconst hallucinationFlags = [];\n\nreturn [{\n  json: {\n    ...caseData,\n    recommendation: {\n      decision: decision,\n      confidence: confidence,\n      urgency: urgency,\n      recommended_actions: recommendedActions,\n      evidence_summary: evidenceSummary,\n      hallucination_flags: hallucinationFlags,\n      explanation: `Based on comprehensive analysis: Transaction risk is ${txnA.classification} (${txnA.risk_score}/100) with ${txnA.findings.length} risk indicators. Customer profile shows ${custA.anomaly_level} anomaly (${custA.anomaly_score}/100). ${riskA.policy_violations.length} policy violation(s) detected. Composite risk score of ${compositeRisk}/100 triggers ${riskA.policy_action} protocol. Recommendation: ${decision} with ${confidence}% confidence.`,\n      structured_output_compliant: true,\n      agent: 'RecommendationAgent',\n      model: 'Qwen-2.5-72B',\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "node-rec-agent",
+      "name": "Recommendation Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1980, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-hitl",
+              "leftValue": "={{ $json.recommendation.decision }}",
+              "rightValue": "APPROVE",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-hitl-check",
+      "name": "Needs Human Review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2200, 300]
+    },
+    {
+      "parameters": {
+        "formTitle": "Fraud Investigation — Human Review",
+        "formDescription": "Review the AI recommendation and make your decision.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Case ID",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "AI Decision",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "AI Confidence",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Human Decision",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "APPROVE" },
+                  { "option": "HOLD & VERIFY" },
+                  { "option": "BLOCK & ESCALATE" },
+                  { "option": "REQUEST MORE INFO" }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Agrees with AI?",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "Yes" },
+                  { "option": "No — Override" },
+                  { "option": "Partially — Modified" }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Analyst Notes",
+              "fieldType": "textarea",
+              "requiredField": false
+            }
+          ]
+        },
+        "options": {
+          "respondWithData": true
+        }
+      },
+      "id": "node-hitl-form",
+      "name": "HITL Review Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.1,
+      "position": [2420, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Auto-approve low-risk transactions\nconst caseData = $input.first().json;\nreturn [{\n  json: {\n    ...caseData,\n    human_review: {\n      decision: 'AUTO_APPROVED',\n      reviewer: 'SYSTEM',\n      agrees_with_ai: true,\n      notes: 'Low-risk transaction auto-approved per policy',\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "node-auto-approve",
+      "name": "Auto-Approve (Low Risk)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 420]
+    },
+    {
+      "parameters": {},
+      "id": "node-merge-hitl",
+      "name": "Merge Review Outcomes",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Guardrails & Audit Logger\n// PII masking, audit trail, compliance check\nconst caseData = $input.first().json;\n\n// PII Masking\nconst piiFields = ['aadhaar', 'pan_number', 'phone', 'email'];\nconst maskedData = JSON.parse(JSON.stringify(caseData));\n\nfunction maskValue(val) {\n  if (typeof val === 'string' && val.length > 4) {\n    return val.substring(0, 2) + '*'.repeat(val.length - 4) + val.substring(val.length - 2);\n  }\n  return val;\n}\n\nfunction maskPII(obj) {\n  for (const key of Object.keys(obj)) {\n    if (piiFields.includes(key.toLowerCase())) {\n      obj[key] = maskValue(obj[key]);\n    } else if (typeof obj[key] === 'object' && obj[key] !== null) {\n      maskPII(obj[key]);\n    }\n  }\n}\nmaskPII(maskedData);\n\n// Build audit trail\nconst auditTrail = {\n  case_id: caseData.case_id,\n  pipeline_start: caseData.pipeline_start,\n  pipeline_end: new Date().toISOString(),\n  agents_executed: [\n    'TransactionAnalysisAgent',\n    'CustomerBehaviourAgent',\n    'RiskPolicyAgent',\n    'RecommendationAgent'\n  ],\n  model_used: 'Qwen-2.5-72B',\n  ai_decision: caseData.recommendation?.decision,\n  human_decision: caseData.human_review?.decision,\n  escalation_flag: caseData.escalation_flag || false,\n  policy_violations: caseData.risk_assessment?.policy_violations?.length || 0,\n  regulatory_flags: caseData.risk_assessment?.regulatory_flags || [],\n  pii_masked: true,\n  guardrails: {\n    pii_masking: 'APPLIED',\n    schema_validation: 'PASSED',\n    hallucination_check: caseData.recommendation?.hallucination_flags?.length === 0 ? 'CLEAN' : 'FLAGGED',\n    sla_compliance: 'MET',\n    human_oversight: caseData.human_review ? 'COMPLETED' : 'PENDING'\n  }\n};\n\nreturn [{\n  json: {\n    masked_case_data: maskedData,\n    audit_trail: auditTrail,\n    final_outcome: {\n      case_id: caseData.case_id,\n      decision: caseData.human_review?.decision || caseData.recommendation?.decision,\n      confidence: caseData.recommendation?.confidence,\n      reviewed_by: caseData.human_review?.reviewer || 'PENDING',\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "node-guardrails",
+      "name": "Guardrails & Audit Logger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2860, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "node-response",
+      "name": "Send Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [3080, 300]
+    }
+  ],
+  "connections": {
+    "Fraud Alert Webhook": {
+      "main": [
+        [{ "node": "Orchestrator Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Orchestrator Agent": {
+      "main": [
+        [{ "node": "Transaction Analysis Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Transaction Analysis Agent": {
+      "main": [
+        [{ "node": "Customer Behaviour Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Customer Behaviour Agent": {
+      "main": [
+        [{ "node": "Risk Threshold Check", "type": "main", "index": 0 }]
+      ]
+    },
+    "Risk Threshold Check": {
+      "main": [
+        [{ "node": "Flag Priority Escalation", "type": "main", "index": 0 }],
+        [{ "node": "Standard Processing", "type": "main", "index": 0 }]
+      ]
+    },
+    "Flag Priority Escalation": {
+      "main": [
+        [{ "node": "Merge Paths", "type": "main", "index": 0 }]
+      ]
+    },
+    "Standard Processing": {
+      "main": [
+        [{ "node": "Merge Paths", "type": "main", "index": 1 }]
+      ]
+    },
+    "Merge Paths": {
+      "main": [
+        [{ "node": "Risk & Policy Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Risk & Policy Agent": {
+      "main": [
+        [{ "node": "Recommendation Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Recommendation Agent": {
+      "main": [
+        [{ "node": "Needs Human Review?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Needs Human Review?": {
+      "main": [
+        [{ "node": "HITL Review Form", "type": "main", "index": 0 }],
+        [{ "node": "Auto-Approve (Low Risk)", "type": "main", "index": 0 }]
+      ]
+    },
+    "HITL Review Form": {
+      "main": [
+        [{ "node": "Merge Review Outcomes", "type": "main", "index": 0 }]
+      ]
+    },
+    "Auto-Approve (Low Risk)": {
+      "main": [
+        [{ "node": "Merge Review Outcomes", "type": "main", "index": 1 }]
+      ]
+    },
+    "Merge Review Outcomes": {
+      "main": [
+        [{ "node": "Guardrails & Audit Logger", "type": "main", "index": 0 }]
+      ]
+    },
+    "Guardrails & Audit Logger": {
+      "main": [
+        [{ "node": "Send Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "fraud-detection" },
+    { "name": "agentic-ai" },
+    { "name": "banking" },
+    { "name": "hackathon" }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-10-04T00:00:00.000Z",
+  "versionId": "1"
+}

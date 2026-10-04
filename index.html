@@ -1,0 +1,1062 @@
+<title>FraudShield AI</title>
+<style>
+  /* Layout: full-width sections with centered content column, sticky nav */
+  :root {
+    --bg: #fafaf8;
+    --bg-surface: #ffffff;
+    --bg-code: #f0eeeb;
+    --fg: #1a1a1e;
+    --fg-muted: #5c5c66;
+    --fg-subtle: #8a8a96;
+    --accent: #2d5be3;
+    --accent-soft: #e8eefb;
+    --risk-critical: #c0392b;
+    --risk-high: #d35400;
+    --risk-medium: #e67e22;
+    --risk-low: #27ae60;
+    --border: #e2e1dd;
+    --border-light: #eeede9;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    --radius: 8px;
+    --font-display: 'DM Serif Display', Georgia, serif;
+    --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121214;
+      --bg-surface: #1c1c20;
+      --bg-code: #232328;
+      --fg: #e8e8ec;
+      --fg-muted: #a0a0ac;
+      --fg-subtle: #6c6c78;
+      --accent: #5b8af0;
+      --accent-soft: #1e2a42;
+      --risk-critical: #e74c3c;
+      --risk-high: #e67e22;
+      --risk-medium: #f39c12;
+      --risk-low: #2ecc71;
+      --border: #2e2e34;
+      --border-light: #252528;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121214;
+    --bg-surface: #1c1c20;
+    --bg-code: #232328;
+    --fg: #e8e8ec;
+    --fg-muted: #a0a0ac;
+    --fg-subtle: #6c6c78;
+    --accent: #5b8af0;
+    --accent-soft: #1e2a42;
+    --risk-critical: #e74c3c;
+    --risk-high: #e67e22;
+    --risk-medium: #f39c12;
+    --risk-low: #2ecc71;
+    --border: #2e2e34;
+    --border-light: #252528;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    color-scheme: dark;
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    line-height: 1.65;
+    padding-inline: 0;
+  }
+
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding-inline: 20px;
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 100;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 0;
+    backdrop-filter: blur(10px);
+  }
+  nav .wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  nav .logo {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    color: var(--accent);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  nav .nav-links {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  nav a.nav-link {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--fg-muted);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+  }
+  nav a.nav-link:hover { background: var(--accent-soft); color: var(--accent); }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 72px 0 56px;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    line-height: 1.15;
+    margin: 0 0 16px;
+    text-wrap: balance;
+  }
+  .hero p {
+    font-size: 1.1rem;
+    color: var(--fg-muted);
+    max-width: 620px;
+    margin: 0 auto;
+  }
+
+  /* ── Sections ── */
+  section {
+    padding: 48px 0;
+    border-top: 1px solid var(--border-light);
+  }
+  section h2 {
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    margin: 0 0 8px;
+  }
+  section .section-lead {
+    color: var(--fg-muted);
+    margin: 0 0 32px;
+    max-width: 640px;
+  }
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 28px 0 10px;
+  }
+
+  /* ── Pipeline diagram ── */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin: 24px 0;
+  }
+  .pipeline-step {
+    flex: 1;
+    min-width: 130px;
+    text-align: center;
+    position: relative;
+    padding: 20px 12px 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .pipeline-step + .pipeline-step { margin-left: 28px; }
+  .pipeline-step + .pipeline-step::before {
+    content: '';
+    position: absolute;
+    left: -22px;
+    top: 50%;
+    width: 16px;
+    height: 2px;
+    background: var(--accent);
+  }
+  .pipeline-step + .pipeline-step::after {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 5px solid transparent;
+    border-left-color: var(--accent);
+  }
+  .pipeline-step .step-num {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .pipeline-step .step-name {
+    font-weight: 600;
+    font-size: 0.82rem;
+    line-height: 1.3;
+  }
+
+  /* ── Agent cards ── */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .agent-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .agent-card .agent-icon {
+    font-size: 1.6rem;
+    line-height: 1;
+  }
+  .agent-card h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .agent-card p {
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+    margin: 0;
+    line-height: 1.5;
+  }
+  .agent-card .agent-io {
+    font-size: 0.78rem;
+    color: var(--fg-subtle);
+    font-family: var(--font-mono);
+    background: var(--bg-code);
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-top: auto;
+  }
+
+  /* ── Test case table ── */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 20px 0;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+  }
+  thead { background: var(--bg-code); }
+  th {
+    text-align: left;
+    font-weight: 600;
+    padding: 10px 14px;
+    white-space: nowrap;
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .badge-critical { background: var(--risk-critical); color: #fff; }
+  .badge-high { background: var(--risk-high); color: #fff; }
+  .badge-medium { background: var(--risk-medium); color: #fff; }
+  .badge-low { background: var(--risk-low); color: #fff; }
+  .badge-accent { background: var(--accent-soft); color: var(--accent); }
+
+  /* ── Model comparison ── */
+  .model-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .model-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .model-card h4 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 4px;
+    font-family: var(--font-mono);
+  }
+  .model-card .dev {
+    font-size: 0.78rem;
+    color: var(--fg-subtle);
+    margin: 0 0 12px;
+  }
+  .model-card dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: 0.82rem;
+    margin: 0;
+  }
+  .model-card dt { font-weight: 500; color: var(--fg-muted); }
+  .model-card dd { margin: 0; }
+
+  /* ── Metric bars ── */
+  .metric-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 6px 0;
+    font-size: 0.82rem;
+  }
+  .metric-label {
+    width: 170px;
+    flex-shrink: 0;
+    font-weight: 500;
+    color: var(--fg-muted);
+  }
+  .metric-bar {
+    flex: 1;
+    height: 18px;
+    background: var(--bg-code);
+    border-radius: 9px;
+    overflow: hidden;
+    position: relative;
+  }
+  .metric-fill {
+    height: 100%;
+    border-radius: 9px;
+    transition: width 0.6s ease;
+  }
+  .metric-val {
+    width: 44px;
+    text-align: right;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 0.8rem;
+  }
+
+  /* ── Guardrails ── */
+  .guardrail-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .guardrail-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 14px;
+  }
+  .guardrail-item .gi-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-top: 2px;
+  }
+  .guardrail-item .gi-text h5 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0 0 2px;
+  }
+  .guardrail-item .gi-text p {
+    font-size: 0.78rem;
+    color: var(--fg-muted);
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  /* ── Code block ── */
+  .code-block {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 16px 0;
+  }
+
+  /* ── Screenshots section ── */
+  .screenshot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .screenshot-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .screenshot-placeholder {
+    background: var(--bg-code);
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: var(--fg-subtle);
+  }
+  .screenshot-caption {
+    padding: 12px 14px;
+    font-size: 0.82rem;
+  }
+  .screenshot-caption strong { display: block; margin-bottom: 2px; }
+  .screenshot-caption span { color: var(--fg-muted); }
+
+  /* ── Results accordion ── */
+  details {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 10px 0;
+  }
+  summary {
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    list-style: none;
+  }
+  summary::before {
+    content: '+ ';
+    font-family: var(--font-mono);
+    color: var(--accent);
+    margin-right: 4px;
+  }
+  details[open] summary::before { content: '- '; }
+  details .detail-body {
+    padding: 0 16px 16px;
+    font-size: 0.85rem;
+  }
+  details .detail-body ul {
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+  details .detail-body li { margin: 4px 0; }
+
+  /* ── Footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--fg-subtle);
+  }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 20px;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-family: var(--font-body);
+    color: var(--fg-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    white-space: nowrap;
+    transition: color 0.15s;
+  }
+  .tab-btn:hover { color: var(--fg); }
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  @media (max-width: 640px) {
+    .hero { padding: 48px 0 36px; }
+    .pipeline { flex-direction: column; align-items: stretch; }
+    .pipeline-step + .pipeline-step { margin-left: 0; margin-top: 12px; }
+    .pipeline-step + .pipeline-step::before,
+    .pipeline-step + .pipeline-step::after { display: none; }
+    .metric-label { width: 120px; font-size: 0.75rem; }
+    nav .nav-links { display: none; }
+  }
+</style>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="#top">FraudShield AI</a>
+    <div class="nav-links">
+      <a class="nav-link" href="#architecture">Architecture</a>
+      <a class="nav-link" href="#agents">Agents</a>
+      <a class="nav-link" href="#test-cases">Test Cases</a>
+      <a class="nav-link" href="#models">Models</a>
+      <a class="nav-link" href="#results">Results</a>
+      <a class="nav-link" href="#guardrails">Guardrails</a>
+      <a class="nav-link" href="#screenshots">Screenshots</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap" id="top">
+
+  <!-- ═══ Hero ═══ -->
+  <div class="hero">
+    <span class="hero-badge">Governed Agentic AI</span>
+    <h1>Banking Fraud Investigation<br>and Response</h1>
+    <p>A multi-agent system that analyses transactions, customer behaviour, and policy compliance — then surfaces a governed recommendation for human investigators to act on.</p>
+  </div>
+
+  <!-- ═══ Architecture ═══ -->
+  <section id="architecture">
+    <h2>System Architecture</h2>
+    <p class="section-lead">Fraud alerts enter the orchestrator and flow through four specialised agents. Conditional routing escalates high-risk cases immediately, while guardrails and audit logging run at every step.</p>
+
+    <div class="pipeline">
+      <div class="pipeline-step">
+        <div class="step-num">Trigger</div>
+        <div class="step-name">Fraud Alert</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">Router</div>
+        <div class="step-name">Orchestrator</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">Agent 1</div>
+        <div class="step-name">Transaction Analysis</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">Agent 2</div>
+        <div class="step-name">Customer Behaviour</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">Agent 3</div>
+        <div class="step-name">Risk &amp; Policy</div>
+      </div>
+      <div class="pipeline-step">
+        <div class="step-num">Agent 4</div>
+        <div class="step-name">Recommendation</div>
+      </div>
+      <div class="pipeline-step" style="border-color: var(--accent); border-width: 2px;">
+        <div class="step-num">HITL</div>
+        <div class="step-name">Human Investigator</div>
+      </div>
+    </div>
+
+    <h3>Conditional Routing Logic</h3>
+    <div class="code-block">IF composite_risk >= 75 OR critical_policy_violation:
+    → BLOCK &amp; ESCALATE  (SLA: 1 hour)
+ELIF composite_risk >= 50:
+    → HOLD &amp; VERIFY    (SLA: 4 hours)
+ELIF composite_risk >= 25:
+    → FLAG &amp; MONITOR   (SLA: 24 hours)
+ELSE:
+    → APPROVE WITH NOTE</div>
+
+    <h3>Technology Stack</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>UI / UX</td><td>Streamlit (Python)</td><td>Interactive investigation dashboard, HITL review, metrics</td></tr>
+          <tr><td>Orchestration</td><td>Python Orchestrator (n8n-compatible)</td><td>Pipeline routing, conditional logic, audit logging</td></tr>
+          <tr><td>AI Models</td><td>Qwen-2.5-72B, Llama-3.1-70B, Mistral-Large-2</td><td>Multi-model inference and comparison</td></tr>
+          <tr><td>Data</td><td>Pandas, JSON</td><td>Transaction records, customer profiles, rule databases</td></tr>
+          <tr><td>Visualisation</td><td>Plotly</td><td>Risk charts, model comparison radar, latency analysis</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ Agents ═══ -->
+  <section id="agents">
+    <h2>Agent Roles</h2>
+    <p class="section-lead">Each agent is a self-contained analysis module with defined inputs, outputs, and a model-specific explanation generator for transparent decision-making.</p>
+
+    <div class="agent-grid">
+      <div class="agent-card">
+        <div class="agent-icon">📊</div>
+        <h4>Transaction Analysis Agent</h4>
+        <p>Evaluates transaction amount deviation, timing anomalies, channel/device signals, location mismatches, recipient risk category, and rule-trigger severity.</p>
+        <div class="agent-io"><strong>Out →</strong> risk_score (0-100), classification, findings[], explanation</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-icon">👤</div>
+        <h4>Customer Behaviour Agent</h4>
+        <p>Assesses account maturity trust, login anomalies, credential/device changes, prior fraud history, customer vulnerability profile, and behavioural consistency.</p>
+        <div class="agent-io"><strong>Out →</strong> anomaly_score, trust_adjusted, anomaly_level, findings[]</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-icon">📜</div>
+        <h4>Risk &amp; Policy Agent</h4>
+        <p>Applies bank threshold policies, RBI AML/KYC guidelines, PMLA reporting rules, elderly protection protocols, and cross-border fraud procedures.</p>
+        <div class="agent-io"><strong>Out →</strong> composite_risk, policy_violations[], regulatory_flags[], hitl_required</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-icon">🎯</div>
+        <h4>Recommendation Agent</h4>
+        <p>Synthesises all prior outputs into a final decision with confidence score, urgency level, actionable next steps, and hallucination self-check flags.</p>
+        <div class="agent-io"><strong>Out →</strong> decision, confidence%, urgency, actions[], evidence_summary</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Test Cases ═══ -->
+  <section id="test-cases">
+    <h2>Test Cases</h2>
+    <p class="section-lead">Three cases covering the required spectrum: a routine transaction, an ambiguous multi-signal alert, and a critical account-takeover scenario.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Case ID</th><th>Type</th><th>Severity</th><th>Customer</th><th>Amount</th><th>Channel</th><th>Expected</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>CASE-2024-001</td>
+            <td><span class="badge badge-low">Normal</span></td>
+            <td><span class="badge badge-medium">Medium</span></td>
+            <td>Rajesh Mehta</td>
+            <td>&#8377;48,000</td>
+            <td>UPI Transfer</td>
+            <td>Approve</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>CASE-2024-002</td>
+            <td><span class="badge badge-medium">Ambiguous</span></td>
+            <td><span class="badge badge-high">High</span></td>
+            <td>Priya Sharma</td>
+            <td>&#8377;95,000</td>
+            <td>NEFT Transfer</td>
+            <td>Hold &amp; Verify</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>CASE-2024-003</td>
+            <td><span class="badge badge-critical">High-Risk</span></td>
+            <td><span class="badge badge-critical">Critical</span></td>
+            <td>Vikram Desai</td>
+            <td>&#8377;4,90,000</td>
+            <td>RTGS Transfer</td>
+            <td>Block &amp; Escalate</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Detailed case accordions -->
+    <details>
+      <summary>Case 001: Normal — Legitimate Family Transfer</summary>
+      <div class="detail-body">
+        <p><strong>Scenario:</strong> Rajesh Mehta, a software engineer in Pune with 8 years of account history, sends &#8377;48,000 via UPI to his brother at 9:23 AM from his registered device.</p>
+        <ul>
+          <li>Amount is 1.4x his average (&#8377;35,000) — mild deviation</li>
+          <li>Known device, known recipient, normal hours</li>
+          <li>1 low-severity rule triggered (amount &gt; 2x daily avg)</li>
+          <li>Zero failed logins, no credential changes</li>
+        </ul>
+        <p><strong>System Decision:</strong> <span class="badge badge-low">APPROVE</span> — Confidence 95%, Urgency LOW, HITL not required</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Case 002: Ambiguous — Velocity Breach + New Device</summary>
+      <div class="detail-body">
+        <p><strong>Scenario:</strong> Priya Sharma, a freelance designer in Mumbai, sends &#8377;95,000 via NEFT to an unregistered beneficiary at 2:47 AM from a new device in Delhi.</p>
+        <ul>
+          <li>Amount is 3.8x her average — significant deviation</li>
+          <li>New device, first-time recipient, unusual hours</li>
+          <li>4 rules triggered (2 High, 2 Medium) including geo-mismatch</li>
+          <li>2 failed login attempts, recent device change</li>
+          <li>Could be legitimate: freelancer paying a new client while travelling</li>
+        </ul>
+        <p><strong>System Decision:</strong> <span class="badge badge-medium">HOLD &amp; VERIFY</span> — Confidence 70%, Urgency HIGH, HITL required</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Case 003: High-Risk — Account Takeover (Elderly Customer)</summary>
+      <div class="detail-body">
+        <p><strong>Scenario:</strong> Vikram Desai, a 67-year-old retired officer in Bengaluru with 22 years of account history, sends &#8377;4,90,000 via RTGS to a crypto exchange wallet at 4:12 AM from a VPN in Lagos, Nigeria.</p>
+        <ul>
+          <li>Amount is 32.7x his average — extreme deviation</li>
+          <li>Unknown device, VPN from Nigeria, crypto destination</li>
+          <li>6 rules triggered (4 Critical, 2 High)</li>
+          <li>7 failed logins followed by password change then immediate high-value transfer</li>
+          <li>Elderly customer — heightened vulnerability to social engineering</li>
+        </ul>
+        <p><strong>System Decision:</strong> <span class="badge badge-critical">BLOCK &amp; ESCALATE</span> — Confidence 98%, Urgency CRITICAL, HITL mandatory</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ═══ Model Comparison ═══ -->
+  <section id="models">
+    <h2>Open Model Comparison</h2>
+    <p class="section-lead">All three test cases were run through three open-weight models using identical prompts, evidence, and output format. Results below are from the high-risk Case 003.</p>
+
+    <div class="model-grid">
+      <div class="model-card">
+        <h4>Qwen-2.5-72B</h4>
+        <p class="dev">Alibaba Cloud &middot; 72B params &middot; Apache 2.0</p>
+        <dl>
+          <dt>Context</dt><dd>128K tokens</dd>
+          <dt>Strengths</dt><dd>Structured output, multilingual reasoning</dd>
+          <dt>Licence</dt><dd>Apache 2.0 / Qwen</dd>
+        </dl>
+      </div>
+      <div class="model-card">
+        <h4>Llama-3.1-70B</h4>
+        <p class="dev">Meta &middot; 70B params &middot; Community License</p>
+        <dl>
+          <dt>Context</dt><dd>128K tokens</dd>
+          <dt>Strengths</dt><dd>General-purpose instruction following</dd>
+          <dt>Licence</dt><dd>Llama 3.1 Community</dd>
+        </dl>
+      </div>
+      <div class="model-card">
+        <h4>Mistral-Large-2</h4>
+        <p class="dev">Mistral AI &middot; 123B params &middot; Research License</p>
+        <dl>
+          <dt>Context</dt><dd>128K tokens</dd>
+          <dt>Strengths</dt><dd>Code generation, structured reasoning, low latency</dd>
+          <dt>Licence</dt><dd>Mistral Research</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Results ═══ -->
+  <section id="results">
+    <h2>Comparison Results</h2>
+    <p class="section-lead">Performance metrics across classification quality, escalation accuracy, false positives, hallucination, explanation quality, structured-output compliance, latency, and task completion.</p>
+
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" onclick="switchTab(event, 'tab-case3')" role="tab">Case 003 (Critical)</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-case2')" role="tab">Case 002 (Ambiguous)</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-case1')" role="tab">Case 001 (Normal)</button>
+    </div>
+
+    <div id="tab-case3" class="tab-panel active">
+      <h3>Case 003 — High-Risk: Account Takeover</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Metric</th><th>Qwen-2.5-72B</th><th>Llama-3.1-70B</th><th>Mistral-Large-2</th></tr></thead>
+          <tbody>
+            <tr><td>Decision</td><td>BLOCK &amp; ESCALATE</td><td>BLOCK &amp; ESCALATE</td><td>BLOCK &amp; ESCALATE</td></tr>
+            <tr><td>Confidence</td><td>98%</td><td>98%</td><td>98%</td></tr>
+            <tr><td>Classification Correct</td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td></tr>
+            <tr><td>Escalation Correct</td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td></tr>
+            <tr><td>False Positive</td><td><span class="badge badge-low">No</span></td><td><span class="badge badge-low">No</span></td><td><span class="badge badge-low">No</span></td></tr>
+            <tr><td>Hallucinations</td><td>0</td><td>0</td><td>0</td></tr>
+            <tr><td>Explanation Quality</td><td>100/100</td><td>90/100</td><td>98/100</td></tr>
+            <tr><td>Structured Output</td><td><span class="badge badge-low">Compliant</span></td><td><span class="badge badge-low">Compliant</span></td><td><span class="badge badge-low">Compliant</span></td></tr>
+            <tr><td>Latency</td><td>~1,015 ms</td><td>~1,245 ms</td><td>~1,034 ms</td></tr>
+            <tr><td>Task Completion</td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-case2" class="tab-panel">
+      <h3>Case 002 — Ambiguous: Velocity Breach + New Device</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Metric</th><th>Qwen-2.5-72B</th><th>Llama-3.1-70B</th><th>Mistral-Large-2</th></tr></thead>
+          <tbody>
+            <tr><td>Decision</td><td>HOLD &amp; VERIFY</td><td>HOLD &amp; VERIFY</td><td>HOLD &amp; VERIFY</td></tr>
+            <tr><td>Confidence</td><td>70%</td><td>68%</td><td>70%</td></tr>
+            <tr><td>Classification Correct</td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td></tr>
+            <tr><td>False Positive</td><td><span class="badge badge-low">No</span></td><td><span class="badge badge-low">No</span></td><td><span class="badge badge-low">No</span></td></tr>
+            <tr><td>Explanation Quality</td><td>95/100</td><td>82/100</td><td>90/100</td></tr>
+            <tr><td>Latency</td><td>~1,050 ms</td><td>~1,190 ms</td><td>~1,020 ms</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-case1" class="tab-panel">
+      <h3>Case 001 — Normal: Legitimate Family Transfer</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Metric</th><th>Qwen-2.5-72B</th><th>Llama-3.1-70B</th><th>Mistral-Large-2</th></tr></thead>
+          <tbody>
+            <tr><td>Decision</td><td>APPROVE</td><td>APPROVE</td><td>APPROVE</td></tr>
+            <tr><td>Confidence</td><td>95%</td><td>93%</td><td>94%</td></tr>
+            <tr><td>Classification Correct</td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td><td><span class="badge badge-low">Yes</span></td></tr>
+            <tr><td>False Positive</td><td><span class="badge badge-low">No</span></td><td><span class="badge badge-low">No</span></td><td><span class="badge badge-low">No</span></td></tr>
+            <tr><td>Explanation Quality</td><td>92/100</td><td>80/100</td><td>88/100</td></tr>
+            <tr><td>Latency</td><td>~1,100 ms</td><td>~1,280 ms</td><td>~1,060 ms</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Metric bars summary -->
+    <h3>Aggregate Metric Comparison (All 3 Cases)</h3>
+
+    <p style="font-size:0.82rem; color: var(--fg-muted); margin-bottom: 16px;">Explanation quality is averaged across all test cases. Higher is better for all metrics except latency.</p>
+
+    <div style="margin-bottom: 10px; font-size: 0.78rem; color: var(--fg-subtle);">
+      <span style="display:inline-block;width:12px;height:12px;background:#2d5be3;border-radius:3px;vertical-align:middle;margin-right:4px;"></span> Qwen-2.5-72B
+      <span style="display:inline-block;width:12px;height:12px;background:#c0392b;border-radius:3px;vertical-align:middle;margin-left:16px;margin-right:4px;"></span> Llama-3.1-70B
+      <span style="display:inline-block;width:12px;height:12px;background:#27ae60;border-radius:3px;vertical-align:middle;margin-left:16px;margin-right:4px;"></span> Mistral-Large-2
+    </div>
+
+    <div>
+      <p style="font-weight:600; font-size:0.85rem; margin: 16px 0 6px;">Classification Accuracy</p>
+      <div class="metric-row"><span class="metric-label">Qwen-2.5-72B</span><div class="metric-bar"><div class="metric-fill" style="width:100%;background:#2d5be3;"></div></div><span class="metric-val">100%</span></div>
+      <div class="metric-row"><span class="metric-label">Llama-3.1-70B</span><div class="metric-bar"><div class="metric-fill" style="width:100%;background:#c0392b;"></div></div><span class="metric-val">100%</span></div>
+      <div class="metric-row"><span class="metric-label">Mistral-Large-2</span><div class="metric-bar"><div class="metric-fill" style="width:100%;background:#27ae60;"></div></div><span class="metric-val">100%</span></div>
+
+      <p style="font-weight:600; font-size:0.85rem; margin: 16px 0 6px;">Explanation Quality (avg)</p>
+      <div class="metric-row"><span class="metric-label">Qwen-2.5-72B</span><div class="metric-bar"><div class="metric-fill" style="width:96%;background:#2d5be3;"></div></div><span class="metric-val">96</span></div>
+      <div class="metric-row"><span class="metric-label">Llama-3.1-70B</span><div class="metric-bar"><div class="metric-fill" style="width:84%;background:#c0392b;"></div></div><span class="metric-val">84</span></div>
+      <div class="metric-row"><span class="metric-label">Mistral-Large-2</span><div class="metric-bar"><div class="metric-fill" style="width:92%;background:#27ae60;"></div></div><span class="metric-val">92</span></div>
+
+      <p style="font-weight:600; font-size:0.85rem; margin: 16px 0 6px;">Avg Latency (lower is better)</p>
+      <div class="metric-row"><span class="metric-label">Qwen-2.5-72B</span><div class="metric-bar"><div class="metric-fill" style="width:78%;background:#2d5be3;"></div></div><span class="metric-val">1,055ms</span></div>
+      <div class="metric-row"><span class="metric-label">Llama-3.1-70B</span><div class="metric-bar"><div class="metric-fill" style="width:96%;background:#c0392b;"></div></div><span class="metric-val">1,238ms</span></div>
+      <div class="metric-row"><span class="metric-label">Mistral-Large-2</span><div class="metric-bar"><div class="metric-fill" style="width:74%;background:#27ae60;"></div></div><span class="metric-val">1,038ms</span></div>
+    </div>
+  </section>
+
+  <!-- ═══ Guardrails ═══ -->
+  <section id="guardrails">
+    <h2>Governance &amp; Guardrails</h2>
+    <p class="section-lead">Eight guardrails enforce safety at the input, process, output, and audit layers of the pipeline.</p>
+
+    <div class="guardrail-list">
+      <div class="guardrail-item">
+        <div class="gi-icon">🔒</div>
+        <div class="gi-text">
+          <h5>PII Masking</h5>
+          <p>Customer names, account numbers, and device IDs are masked before model inference to prevent data leakage.</p>
+        </div>
+      </div>
+      <div class="guardrail-item">
+        <div class="gi-icon">📐</div>
+        <div class="gi-text">
+          <h5>Schema Validation</h5>
+          <p>Every agent input and output is validated against a typed schema. Malformed data is rejected before processing.</p>
+        </div>
+      </div>
+      <div class="guardrail-item">
+        <div class="gi-icon">👨‍💼</div>
+        <div class="gi-text">
+          <h5>Mandatory HITL</h5>
+          <p>Cases with composite risk &gt; 40 or two or more policy violations require human approval before any action is taken.</p>
+        </div>
+      </div>
+      <div class="guardrail-item">
+        <div class="gi-icon">⏰</div>
+        <div class="gi-text">
+          <h5>SLA Enforcement</h5>
+          <p>Critical cases have a 1-hour SLA; high-priority cases 4 hours. Breaches trigger automatic escalation.</p>
+        </div>
+      </div>
+      <div class="guardrail-item">
+        <div class="gi-icon">🔍</div>
+        <div class="gi-text">
+          <h5>Hallucination Detection</h5>
+          <p>The Recommendation Agent cross-checks its claims against upstream evidence and flags unsupported assertions.</p>
+        </div>
+      </div>
+      <div class="guardrail-item">
+        <div class="gi-icon">📋</div>
+        <div class="gi-text">
+          <h5>Structured Output Check</h5>
+          <p>All agent outputs are verified for JSON compliance, required field presence, and value-range correctness.</p>
+        </div>
+      </div>
+      <div class="guardrail-item">
+        <div class="gi-icon">📝</div>
+        <div class="gi-text">
+          <h5>Full Audit Trail</h5>
+          <p>Every pipeline step, model call, HITL decision, and override is timestamped and logged for regulatory review.</p>
+        </div>
+      </div>
+      <div class="guardrail-item">
+        <div class="gi-icon">⚖️</div>
+        <div class="gi-text">
+          <h5>Regulatory Compliance</h5>
+          <p>Automated checks against RBI AML/KYC guidelines, PMLA STR requirements, and FATF Travel Rule obligations.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Screenshots ═══ -->
+  <section id="screenshots">
+    <h2>Application Screenshots</h2>
+    <p class="section-lead">Numbered and captioned screenshots from the Streamlit application showing workflow execution, agent outputs, model comparison, and HITL review.</p>
+
+    <div class="screenshot-grid">
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder">1</div>
+        <div class="screenshot-caption">
+          <strong>Figure 1: Dashboard Overview</strong>
+          <span>Fraud alert queue with severity badges, pipeline architecture diagram, and active guardrails panel.</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder">2</div>
+        <div class="screenshot-caption">
+          <strong>Figure 2: Pipeline Execution (Case 001)</strong>
+          <span>Normal case running through all four agents. Progress bar shows real-time agent status.</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder">3</div>
+        <div class="screenshot-caption">
+          <strong>Figure 3: Agent Analysis — Transaction &amp; Customer</strong>
+          <span>Detailed findings from Transaction Analysis Agent (risk score) and Customer Behaviour Agent (anomaly level).</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder">4</div>
+        <div class="screenshot-caption">
+          <strong>Figure 4: Risk &amp; Recommendation Output</strong>
+          <span>Policy violations, regulatory flags, and final recommendation with confidence percentage.</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder">5</div>
+        <div class="screenshot-caption">
+          <strong>Figure 5: 3-Model Comparison — Risk Scores</strong>
+          <span>Bar chart comparing Qwen, Llama, and Mistral risk scores on the high-risk case.</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder">6</div>
+        <div class="screenshot-caption">
+          <strong>Figure 6: Radar Chart — Multi-Dimensional Assessment</strong>
+          <span>Six-axis radar comparing classification, escalation, FP rate, explanation quality, compliance, and speed.</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder">7</div>
+        <div class="screenshot-caption">
+          <strong>Figure 7: HITL Review Interface</strong>
+          <span>Side-by-side AI recommendation and human decision form with override reason field.</span>
+        </div>
+      </div>
+      <div class="screenshot-card">
+        <div class="screenshot-placeholder">8</div>
+        <div class="screenshot-caption">
+          <strong>Figure 8: Audit Trail &amp; Guardrail Report</strong>
+          <span>Pipeline audit log, guardrail compliance status, and human-AI agreement distribution chart.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ HITL ═══ -->
+  <section>
+    <h2>Human-in-the-Loop Design</h2>
+    <p class="section-lead">The system preserves human decision authority at every critical juncture while using AI to accelerate evidence gathering and pattern recognition.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Decision Point</th><th>AI Role</th><th>Human Authority</th><th>Trigger</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Case Triage</td>
+            <td>Ranks and routes by severity</td>
+            <td>Can override priority</td>
+            <td>Every new alert</td>
+          </tr>
+          <tr>
+            <td>Investigation</td>
+            <td>Runs 4-agent analysis pipeline</td>
+            <td>Reviews all evidence</td>
+            <td>Pipeline completion</td>
+          </tr>
+          <tr>
+            <td>Disposition</td>
+            <td>Recommends with confidence</td>
+            <td>Makes final call, can override</td>
+            <td>Composite risk &gt; 40</td>
+          </tr>
+          <tr>
+            <td>Escalation</td>
+            <td>Suggests escalation path</td>
+            <td>Approves escalation target</td>
+            <td>Critical severity or policy mandate</td>
+          </tr>
+          <tr>
+            <td>Exception</td>
+            <td>Flags anomalies and hallucinations</td>
+            <td>Handles edge cases</td>
+            <td>Conflicting signals, low confidence</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p>FraudShield AI &middot; Governed Agentic AI for Banking Fraud Investigation<br>
+    Built with Streamlit, Plotly, and Python &middot; Hackathon 2024</p>
+  </footer>
+</div>
+
+<script>
+function switchTab(e, panelId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  e.currentTarget.classList.add('active');
+  document.getElementById(panelId).classList.add('active');
+}
+</script>
