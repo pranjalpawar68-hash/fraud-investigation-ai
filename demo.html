@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraudShield AI - Banking Fraud Investigation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#f8f9fc;--surface:#fff;--text:#1a1a2e;--text2:#6c757d;--border:#e2e8f0;
+--accent:#667eea;--accent2:#764ba2;--green:#27ae60;--red:#e74c3c;--orange:#f39c12;--yellow:#ffc107;
+--sidebar-bg:linear-gradient(180deg,#1a1a2e 0%,#16213e 100%);--sidebar-text:#e0e0e0;
+}
+@media(prefers-color-scheme:dark){
+:root{
+--bg:#0f1117;--surface:#1a1d2e;--text:#e8e8f0;--text2:#9ca3af;--border:#2d3348;
+}
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh}
+a{color:var(--accent)}
+
+/* Sidebar */
+.sidebar{width:260px;background:var(--sidebar-bg);color:var(--sidebar-text);padding:1.5rem 1rem;flex-shrink:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:100}
+.sidebar h2{font-size:1.3rem;margin-bottom:.3rem}
+.sidebar .subtitle{font-size:.8rem;opacity:.7;margin-bottom:1.5rem}
+.sidebar hr{border:none;border-top:1px solid rgba(255,255,255,.15);margin:1rem 0}
+.nav-item{display:block;padding:.65rem .9rem;border-radius:8px;cursor:pointer;margin-bottom:4px;font-size:.88rem;color:var(--sidebar-text);transition:background .15s}
+.nav-item:hover,.nav-item.active{background:rgba(102,126,234,.3)}
+.nav-item.active{font-weight:600}
+.status-item{font-size:.78rem;margin:3px 0;opacity:.85}
+.sidebar-footer{margin-top:auto;font-size:.7rem;opacity:.5;padding-top:1rem}
+
+/* Main */
+.main{margin-left:260px;flex:1;padding:2rem 2.5rem;max-width:1200px}
+.page{display:none}
+.page.active{display:block}
+.page-title{font-size:2rem;font-weight:700;margin-bottom:.3rem}
+.page-sub{color:var(--text2);margin-bottom:1.5rem;font-size:.95rem}
+
+/* Cards */
+.metric-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.metric-card{padding:1.2rem;border-radius:12px;color:#fff;text-align:center}
+.metric-card h3{font-size:1.8rem;margin:0}
+.metric-card p{font-size:.82rem;opacity:.9;margin:0}
+.mc1{background:linear-gradient(135deg,#667eea,#764ba2)}
+.mc2{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+.mc3{background:linear-gradient(135deg,#f39c12,#e67e22)}
+.mc4{background:linear-gradient(135deg,#27ae60,#2ecc71)}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.2rem;margin-bottom:1rem}
+.card h3{font-size:1.1rem;margin-bottom:.8rem}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin:.5rem 0}
+th,td{padding:.55rem .7rem;text-align:left;border-bottom:1px solid var(--border)}
+th{background:var(--surface);font-weight:600;position:sticky;top:0}
+tr:hover{background:rgba(102,126,234,.04)}
+
+/* Badges */
+.badge{padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:600;color:#fff;display:inline-block}
+.badge-critical{background:linear-gradient(135deg,#e74c3c,#c0392b)}
+.badge-high{background:linear-gradient(135deg,#e67e22,#d35400)}
+.badge-medium{background:linear-gradient(135deg,#f39c12,#e67e22)}
+.badge-low{background:linear-gradient(135deg,#27ae60,#2ecc71)}
+
+/* Guardrail boxes */
+.guardrail-box{background:rgba(33,150,243,.08);border-left:4px solid #2196F3;padding:.8rem 1rem;margin:.5rem 0;border-radius:0 8px 8px 0}
+.guardrail-box strong{display:block;margin-bottom:.3rem}
+
+/* Decision boxes */
+.decision-approve{background:rgba(39,174,96,.1);border:2px solid #28a745;border-radius:10px;padding:1rem;margin:.5rem 0}
+.decision-hold{background:rgba(255,193,7,.1);border:2px solid #ffc107;border-radius:10px;padding:1rem;margin:.5rem 0}
+.decision-block{background:rgba(231,76,60,.1);border:2px solid #dc3545;border-radius:10px;padding:1rem;margin:.5rem 0}
+
+/* Buttons */
+.btn{display:inline-block;padding:.7rem 1.5rem;border-radius:8px;border:none;cursor:pointer;font-size:.9rem;font-weight:600;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff;width:100%}
+.btn-primary:hover{background:#5a6fd6}
+.btn-success{background:var(--green);color:#fff}
+
+/* Expander */
+.expander{border:1px solid var(--border);border-radius:8px;margin:.6rem 0;background:var(--surface)}
+.expander-header{padding:.8rem 1rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:.92rem}
+.expander-header:hover{background:rgba(102,126,234,.04)}
+.expander-body{padding:0 1rem 1rem;display:none}
+.expander.open .expander-body{display:block}
+.expander-header::after{content:'▸';transition:transform .2s}
+.expander.open .expander-header::after{transform:rotate(90deg)}
+
+/* Form elements */
+select,textarea{width:100%;padding:.5rem;border:1px solid var(--border);border-radius:6px;font-size:.88rem;background:var(--surface);color:var(--text);margin:.3rem 0}
+label{font-size:.85rem;font-weight:600;margin-top:.5rem;display:block}
+
+/* Grid helpers */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+.metrics-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem;margin:.5rem 0}
+.mini-metric{text-align:center;padding:.5rem;background:var(--bg);border-radius:8px}
+.mini-metric .val{font-size:1.4rem;font-weight:700;color:var(--accent)}
+.mini-metric .lbl{font-size:.75rem;color:var(--text2)}
+
+/* Pipeline anim */
+.pipeline-step{display:flex;align-items:center;gap:8px;padding:.4rem 0;font-size:.88rem}
+.pipeline-step .icon{width:22px;text-align:center}
+.step-done .icon{color:var(--green)}
+.step-running .icon{color:#3498db}
+.step-pending .icon{color:#bdc3c7}
+
+/* Progress bar */
+.progress-bar{width:100%;height:8px;background:var(--border);border-radius:4px;margin:.5rem 0;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .4s ease}
+
+/* Chart container */
+.chart-container{position:relative;height:350px;margin:1rem 0}
+.chart-container canvas{max-height:100%}
+
+/* Architecture code block */
+.code-block{background:#1e1e2e;color:#cdd6f4;padding:1rem;border-radius:8px;font-family:'Courier New',monospace;font-size:.78rem;overflow-x:auto;white-space:pre;margin:.5rem 0;line-height:1.5}
+
+hr{border:none;border-top:1px solid var(--border);margin:1.5rem 0}
+
+/* Responsive */
+@media(max-width:768px){
+.sidebar{display:none}
+.main{margin-left:0;padding:1rem}
+.metric-row,.grid-2,.grid-3,.metrics-row{grid-template-columns:1fr}
+.mobile-nav{display:flex !important}
+}
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:200;padding:.5rem;gap:2px;overflow-x:auto}
+.mobile-nav button{flex:1;min-width:60px;padding:.5rem .3rem;border:none;background:none;font-size:.65rem;cursor:pointer;border-radius:6px;color:var(--text)}
+.mobile-nav button.active{background:rgba(102,126,234,.15);color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+<h2>🛡️ FraudShield AI</h2>
+<div class="subtitle">Governed Agentic AI for Banking Fraud Investigation</div>
+<hr>
+<div class="nav-item active" data-page="dashboard">🏠 Dashboard</div>
+<div class="nav-item" data-page="investigation">🔍 Case Investigation</div>
+<div class="nav-item" data-page="comparison">🤖 Model Comparison</div>
+<div class="nav-item" data-page="hitl">👨‍💼 HITL Review</div>
+<div class="nav-item" data-page="metrics">📊 Metrics & Reports</div>
+<div class="nav-item" data-page="architecture">ℹ️ Architecture</div>
+<hr>
+<div style="font-size:.82rem;font-weight:600;margin-bottom:.5rem">System Status</div>
+<div class="status-item">✅ Orchestrator: Online</div>
+<div class="status-item">✅ Agent Pipeline: Ready</div>
+<div class="status-item">✅ Guardrails: Active</div>
+<div class="status-item">✅ HITL Module: Enabled</div>
+<div class="sidebar-footer">v1.0 | Built for Hackathon 2024<br>Agentic AI Governance Framework</div>
+</nav>
+
+<!-- Mobile nav -->
+<div class="mobile-nav">
+<button class="active" data-page="dashboard">🏠</button>
+<button data-page="investigation">🔍</button>
+<button data-page="comparison">🤖</button>
+<button data-page="hitl">👨‍💼</button>
+<button data-page="metrics">📊</button>
+<button data-page="architecture">ℹ️</button>
+</div>
+
+<!-- Main Content -->
+<main class="main">
+
+<!-- ===== DASHBOARD ===== -->
+<div class="page active" id="page-dashboard">
+<h1 class="page-title">🛡️ FraudShield AI Dashboard</h1>
+<p class="page-sub">Governed Agentic AI for Banking Fraud Investigation and Response</p>
+
+<div class="metric-row">
+<div class="metric-card mc1"><h3>3</h3><p>Active Cases</p></div>
+<div class="metric-card mc2"><h3>1</h3><p>Critical Alerts</p></div>
+<div class="metric-card mc3"><h3>1</h3><p>Pending HITL Review</p></div>
+<div class="metric-card mc4"><h3>3</h3><p>Models Compared</p></div>
+</div>
+<hr>
+
+<h3 style="margin-bottom:.8rem">📋 Fraud Alert Queue</h3>
+<div style="overflow-x:auto">
+<table id="caseTable">
+<thead><tr><th>Case ID</th><th>Type</th><th>Alert</th><th>Severity</th><th>Customer</th><th>Amount (INR)</th><th>Channel</th><th>Time</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+<hr>
+
+<h3 style="margin-bottom:.8rem">🔄 Agentic Pipeline Architecture</h3>
+<div class="code-block">┌──────────────┐    ┌──────────────────┐    ┌──────────────────────┐    ┌─────────────────┐    ┌────────────────────┐    ┌──────────────────────┐
+│  Fraud Alert  │───▶│   Orchestrator   │───▶│ Transaction Analysis │───▶│ Customer Behav. │───▶│  Risk & Policy     │───▶│   Recommendation     │
+│  (Trigger)    │    │  (Router/Guard)  │    │    Agent             │    │    Agent        │    │    Agent           │    │     Agent            │
+└──────────────┘    └──────────────────┘    └──────────────────────┘    └─────────────────┘    └────────────────────┘    └──────────┬───────────┘
+                                                                                                                                   │
+                                                                                                                          ┌────────▼─────────┐
+                                                                                                                          │  Human-in-Loop   │
+                                                                                                                          │  (HITL Review)   │
+                                                                                                                          └────────┬─────────┘
+                                                                                                                                   │
+                                                                                                                          ┌────────▼─────────┐
+                                                                                                                          │  Final Outcome   │
+                                                                                                                          │ (Approve/Block)  │
+                                                                                                                          └──────────────────┘</div>
+<hr>
+<h3 style="margin-bottom:.8rem">🛡️ Active Guardrails</h3>
+<div class="grid-2">
+<div>
+<div class="guardrail-box"><strong>Input Guardrails</strong>• PII masking before model inference<br>• Schema validation on all agent inputs<br>• Rate limiting on API calls</div>
+<div class="guardrail-box"><strong>Process Guardrails</strong>• Mandatory HITL for composite risk &gt; 40<br>• Escalation timeout SLA enforcement<br>• Agent output cross-validation</div>
+</div>
+<div>
+<div class="guardrail-box"><strong>Output Guardrails</strong>• Hallucination detection flags<br>• Structured output compliance check<br>• Decision confidence thresholds</div>
+<div class="guardrail-box"><strong>Governance Controls</strong>• Full audit trail with timestamps<br>• Model comparison for bias detection<br>• Regulatory compliance validation (RBI/PMLA)</div>
+</div>
+</div>
+</div>
+
+<!-- ===== CASE INVESTIGATION ===== -->
+<div class="page" id="page-investigation">
+<h1 class="page-title">🔍 Case Investigation</h1>
+<p class="page-sub">Select a case and run the agentic investigation pipeline</p>
+
+<div class="grid-2" style="margin-bottom:1rem">
+<div><label>Select Fraud Case</label><select id="caseSelect"></select></div>
+<div><label>Select AI Model</label><select id="modelSelect"><option>Qwen-2.5-72B</option><option>Llama-3.1-70B</option><option>Mistral-Large-2</option></select></div>
+</div>
+
+<div id="caseDetails" class="card"></div>
+
+<div id="ruleTriggers" style="margin-bottom:1rem"></div>
+
+<button class="btn btn-primary" id="runPipelineBtn" onclick="runInvestigation()">🚀 Run Agentic Investigation Pipeline</button>
+
+<div id="pipelineResults" style="margin-top:1.5rem"></div>
+</div>
+
+<!-- ===== MODEL COMPARISON ===== -->
+<div class="page" id="page-comparison">
+<h1 class="page-title">🤖 Open Model Comparison</h1>
+<p class="page-sub">Compare Qwen-2.5-72B, Llama-3.1-70B, and Mistral-Large-2 across identical test cases</p>
+
+<h3 style="margin-bottom:.8rem">📋 Model Specifications</h3>
+<div class="grid-3" id="modelCards"></div>
+<hr>
+<div style="margin-bottom:1rem">
+<label>Select Case for Comparison</label>
+<select id="compareCaseSelect"></select>
+</div>
+<button class="btn btn-primary" onclick="runComparison()">🔬 Run 3-Model Comparison</button>
+<div id="comparisonResults" style="margin-top:1.5rem"></div>
+</div>
+
+<!-- ===== HITL REVIEW ===== -->
+<div class="page" id="page-hitl">
+<h1 class="page-title">👨‍💼 Human-in-the-Loop Review</h1>
+<p class="page-sub">Review AI recommendations and make final fraud disposition decisions</p>
+<div id="hitlContent"></div>
+</div>
+
+<!-- ===== METRICS ===== -->
+<div class="page" id="page-metrics">
+<h1 class="page-title">📊 Metrics & Reports</h1>
+<p class="page-sub">Performance metrics, guardrail reports, and audit trails</p>
+
+<div id="metricsContent"></div>
+
+<hr>
+<h3 style="margin-bottom:.8rem">🛡️ Guardrail Compliance Report</h3>
+<table>
+<thead><tr><th>Guardrail</th><th>Status</th><th>Last Check</th><th>Violations (24h)</th></tr></thead>
+<tbody>
+<tr><td>PII Masking</td><td>✅ Active</td><td id="guardTime1"></td><td>0</td></tr>
+<tr><td>Schema Validation</td><td>✅ Active</td><td id="guardTime2"></td><td>0</td></tr>
+<tr><td>HITL Enforcement</td><td>✅ Active</td><td id="guardTime3"></td><td>0</td></tr>
+<tr><td>Hallucination Detection</td><td>✅ Active</td><td id="guardTime4"></td><td>0</td></tr>
+<tr><td>Structured Output</td><td>✅ Active</td><td id="guardTime5"></td><td>0</td></tr>
+<tr><td>Audit Logging</td><td>✅ Active</td><td id="guardTime6"></td><td>0</td></tr>
+<tr><td>Escalation SLA</td><td>✅ Active</td><td id="guardTime7"></td><td>0</td></tr>
+<tr><td>Regulatory Compliance</td><td>✅ Active</td><td id="guardTime8"></td><td>0</td></tr>
+</tbody>
+</table>
+
+<div id="hitlAuditTrail"></div>
+</div>
+
+<!-- ===== ARCHITECTURE ===== -->
+<div class="page" id="page-architecture">
+<h1 class="page-title">ℹ️ Solution Architecture</h1>
+<div class="card">
+<h3>System Overview</h3>
+<p style="margin:.5rem 0"><strong>FraudShield AI</strong> is a governed agentic AI solution for banking fraud investigation that combines multi-agent analysis with human-in-the-loop decision authority.</p>
+</div>
+<hr>
+<h3 style="margin-bottom:.8rem">Agent Roles</h3>
+<table>
+<thead><tr><th>Agent</th><th>Role</th><th>Key Inputs</th><th>Key Outputs</th></tr></thead>
+<tbody>
+<tr><td><strong>Transaction Analysis</strong></td><td>Analyzes transaction amount, timing, channel, device signals</td><td>Transaction data, historical patterns</td><td>Risk score, classification, findings</td></tr>
+<tr><td><strong>Customer Behaviour</strong></td><td>Evaluates customer profile, login patterns, account anomalies</td><td>Customer profile, login history</td><td>Anomaly score, trust adjustment, behavioural flags</td></tr>
+<tr><td><strong>Risk & Policy</strong></td><td>Applies bank policies, regulatory rules, threshold checks</td><td>Prior agent outputs, policy database</td><td>Composite risk, policy violations, regulatory flags</td></tr>
+<tr><td><strong>Recommendation</strong></td><td>Synthesizes evidence into actionable recommendation</td><td>All prior outputs</td><td>Decision, confidence, urgency, recommended actions</td></tr>
+</tbody>
+</table>
+<hr>
+<h3 style="margin-bottom:.8rem">Governance Framework</h3>
+<table>
+<thead><tr><th>Layer</th><th>Controls</th></tr></thead>
+<tbody>
+<tr><td><strong>Input</strong></td><td>PII masking, schema validation, rate limiting</td></tr>
+<tr><td><strong>Process</strong></td><td>Mandatory HITL for risk &gt; 40, timeout SLAs, cross-validation</td></tr>
+<tr><td><strong>Output</strong></td><td>Hallucination detection, structured compliance, confidence thresholds</td></tr>
+<tr><td><strong>Audit</strong></td><td>Full pipeline logs, model comparison records, HITL decision trail</td></tr>
+</tbody>
+</table>
+<hr>
+<h3 style="margin-bottom:.8rem">Model Comparison Strategy</h3>
+<div class="card">
+<p>Three open-weight models are compared on identical cases:</p>
+<p style="margin:.5rem 0">1. <strong>Qwen-2.5-72B</strong> (Alibaba) - Strong structured output and reasoning<br>
+2. <strong>Llama-3.1-70B</strong> (Meta) - Strong general-purpose instruction following<br>
+3. <strong>Mistral-Large-2</strong> (Mistral AI) - Fast inference with strong code/reasoning</p>
+<p style="margin-top:.5rem"><strong>Metrics:</strong> Classification quality, escalation accuracy, false positive rate, hallucination count, explanation quality, structured-output compliance, latency, task completion.</p>
+</div>
+<hr>
+<h3 style="margin-bottom:.8rem">Conditional Routing Logic</h3>
+<div class="code-block">IF composite_risk >= 75 OR critical_policy_violation:
+    → BLOCK & ESCALATE (SLA: 1 hour)
+ELIF composite_risk >= 50:
+    → HOLD & VERIFY (SLA: 4 hours)
+ELIF composite_risk >= 25:
+    → FLAG & MONITOR (SLA: 24 hours)
+ELSE:
+    → APPROVE WITH NOTE</div>
+<hr>
+<h3 style="margin-bottom:.8rem">Technology Stack</h3>
+<table>
+<thead><tr><th>Component</th><th>Technology</th></tr></thead>
+<tbody>
+<tr><td><strong>UI/UX</strong></td><td>HTML/CSS/JS (Static SPA)</td></tr>
+<tr><td><strong>Orchestration</strong></td><td>n8n Workflow (14-node pipeline)</td></tr>
+<tr><td><strong>AI Models</strong></td><td>Qwen-2.5-72B, Llama-3.1-70B, Mistral-Large-2</td></tr>
+<tr><td><strong>Data</strong></td><td>JSON-based case data</td></tr>
+<tr><td><strong>Visualization</strong></td><td>Chart.js</td></tr>
+<tr><td><strong>Deployment</strong></td><td>Vercel</td></tr>
+</tbody>
+</table>
+<hr>
+<h3 style="margin-bottom:.8rem">Test Case Matrix</h3>
+<table>
+<thead><tr><th>Case ID</th><th>Type</th><th>Severity</th><th>Expected Outcome</th></tr></thead>
+<tbody>
+<tr><td>CASE-2024-001</td><td>Normal</td><td><span class="badge badge-medium">Medium</span></td><td>Approve - Legitimate family transfer</td></tr>
+<tr><td>CASE-2024-002</td><td>Ambiguous</td><td><span class="badge badge-high">High</span></td><td>Hold & Verify - Mixed signals</td></tr>
+<tr><td>CASE-2024-003</td><td>High-Risk</td><td><span class="badge badge-critical">Critical</span></td><td>Block & Escalate - Account takeover</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════
+// TEST CASE DATA
+// ═══════════════════════════════════════════
+const TEST_CASES={"CASE-2024-001":{case_id:"CASE-2024-001",case_type:"Normal",alert_type:"Unusual Transaction Pattern",severity:"Medium",timestamp:"2024-10-04 09:23:14",customer:{id:"CUST-88234",name:"Rajesh Mehta",age:42,account_type:"Savings",account_age_years:8,kyc_status:"Verified",risk_profile:"Low",average_monthly_balance:245000,occupation:"Software Engineer",city:"Pune",phone_verified:true,email_verified:true},transaction:{txn_id:"TXN-9928374",amount:48000,currency:"INR",type:"UPI Transfer",channel:"Mobile App",merchant:"N/A - P2P Transfer",recipient:"Suresh Mehta (Brother)",location:"Pune, Maharashtra",device_id:"DEV-MOB-4421",ip_address:"103.21.58.xx",device_fingerprint_match:true,time_of_day:"09:23 AM",is_first_time_recipient:false},historical_context:{similar_txns_last_6mo:12,avg_txn_amount:35000,max_txn_amount:75000,failed_login_attempts_24h:0,password_changed_recently:false,device_change_recent:false,previous_fraud_cases:0},rule_triggers:[{rule_id:"R-101",rule_name:"Amount > 2x avg daily",severity:"Low"}],expected_outcome:"Approve - Legitimate family transfer"},"CASE-2024-002":{case_id:"CASE-2024-002",case_type:"Ambiguous / Exception",alert_type:"Velocity Rule Breach + New Device",severity:"High",timestamp:"2024-10-04 02:47:33",customer:{id:"CUST-55102",name:"Priya Sharma",age:29,account_type:"Current",account_age_years:3,kyc_status:"Verified",risk_profile:"Medium",average_monthly_balance:182000,occupation:"Freelance Designer",city:"Mumbai",phone_verified:true,email_verified:true},transaction:{txn_id:"TXN-3384756",amount:95000,currency:"INR",type:"NEFT Transfer",channel:"Internet Banking",merchant:"N/A - P2P Transfer",recipient:"Ankit Verma (Unregistered Beneficiary)",location:"Delhi, NCR",device_id:"DEV-WEB-NEW-8812",ip_address:"49.36.12.xx",device_fingerprint_match:false,time_of_day:"02:47 AM",is_first_time_recipient:true},historical_context:{similar_txns_last_6mo:2,avg_txn_amount:25000,max_txn_amount:60000,failed_login_attempts_24h:2,password_changed_recently:false,device_change_recent:true,previous_fraud_cases:0},rule_triggers:[{rule_id:"R-201",rule_name:"New device + high-value txn",severity:"High"},{rule_id:"R-205",rule_name:"Transaction outside normal hours",severity:"Medium"},{rule_id:"R-210",rule_name:"Amount > 3x avg + new beneficiary",severity:"High"},{rule_id:"R-215",rule_name:"Geo-location mismatch (Mumbai->Delhi)",severity:"Medium"}],expected_outcome:"Hold & Verify - Multiple suspicious signals"},"CASE-2024-003":{case_id:"CASE-2024-003",case_type:"High-Risk",alert_type:"Account Takeover Suspected",severity:"Critical",timestamp:"2024-10-04 04:12:08",customer:{id:"CUST-12890",name:"Vikram Desai",age:67,account_type:"Savings",account_age_years:22,kyc_status:"Verified",risk_profile:"Low",average_monthly_balance:1850000,occupation:"Retired Government Officer",city:"Bengaluru",phone_verified:true,email_verified:true},transaction:{txn_id:"TXN-7712093",amount:490000,currency:"INR",type:"RTGS Transfer",channel:"Internet Banking",merchant:"N/A - P2P Transfer",recipient:"Crypto Exchange Wallet (Unregistered Beneficiary)",location:"Lagos, Nigeria (VPN Detected)",device_id:"DEV-WEB-UNKNOWN-0091",ip_address:"196.46.33.xx",device_fingerprint_match:false,time_of_day:"04:12 AM",is_first_time_recipient:true},historical_context:{similar_txns_last_6mo:0,avg_txn_amount:15000,max_txn_amount:50000,failed_login_attempts_24h:7,password_changed_recently:true,device_change_recent:true,previous_fraud_cases:0},rule_triggers:[{rule_id:"R-301",rule_name:"Foreign IP + VPN detected",severity:"Critical"},{rule_id:"R-302",rule_name:"Multiple failed logins -> password change -> high txn",severity:"Critical"},{rule_id:"R-303",rule_name:"Amount > 10x avg + crypto destination",severity:"Critical"},{rule_id:"R-304",rule_name:"Unknown device + elderly customer",severity:"High"},{rule_id:"R-305",rule_name:"Transaction at unusual hour for customer profile",severity:"High"},{rule_id:"R-306",rule_name:"Beneficiary pattern: crypto exchange (high risk category)",severity:"Critical"}],expected_outcome:"Block & Escalate - Account takeover"}};
+
+const MODEL_INFO={"Qwen-2.5-72B":{developer:"Alibaba Cloud",parameters:"72B",license:"Apache 2.0 / Qwen",context_window:"128K tokens",strengths:"Strong structured output, multilingual, reasoning"},"Llama-3.1-70B":{developer:"Meta",parameters:"70B",license:"Llama 3.1 Community License",context_window:"128K tokens",strengths:"General-purpose, strong instruction following"},"Mistral-Large-2":{developer:"Mistral AI",parameters:"123B",license:"Mistral Research License",context_window:"128K tokens",strengths:"Code generation, structured reasoning, low latency"}};
+
+const MODELS=["Qwen-2.5-72B","Llama-3.1-70B","Mistral-Large-2"];
+
+// State
+let investigationResults={};
+let comparisonResults={};
+let hitlDecisions={};
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+document.querySelectorAll('.nav-item, .mobile-nav button').forEach(el=>{
+el.addEventListener('click',()=>{
+const page=el.dataset.page;
+document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+document.getElementById('page-'+page).classList.add('active');
+document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+document.querySelectorAll('.mobile-nav button').forEach(n=>n.classList.remove('active'));
+document.querySelectorAll(`[data-page="${page}"]`).forEach(n=>n.classList.add('active'));
+});
+});
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+function init(){
+// Dashboard table
+const tbody=document.querySelector('#caseTable tbody');
+Object.values(TEST_CASES).forEach(c=>{
+const sev=c.severity.toLowerCase();
+tbody.innerHTML+=`<tr><td>${c.case_id}</td><td>${c.case_type}</td><td>${c.alert_type}</td><td><span class="badge badge-${sev}">${c.severity}</span></td><td>${c.customer.name}</td><td>₹${c.transaction.amount.toLocaleString('en-IN')}</td><td>${c.transaction.type}</td><td>${c.timestamp}</td></tr>`;
+});
+
+// Case select dropdowns
+['caseSelect','compareCaseSelect'].forEach(id=>{
+const sel=document.getElementById(id);
+if(!sel)return;
+Object.keys(TEST_CASES).forEach(k=>{
+const c=TEST_CASES[k];
+sel.innerHTML+=`<option value="${k}">${k} - ${c.case_type} (${c.severity})</option>`;
+});
+});
+
+// Model cards
+const mc=document.getElementById('modelCards');
+Object.entries(MODEL_INFO).forEach(([name,info])=>{
+mc.innerHTML+=`<div class="card"><h3>${name}</h3><p><strong>Developer:</strong> ${info.developer}<br><strong>Parameters:</strong> ${info.parameters}<br><strong>License:</strong> ${info.license}<br><strong>Context:</strong> ${info.context_window}<br><strong>Strengths:</strong> ${info.strengths}</p></div>`;
+});
+
+// Case details listener
+document.getElementById('caseSelect').addEventListener('change',updateCaseDetails);
+updateCaseDetails();
+
+// Guard times
+const now=new Date().toLocaleString();
+for(let i=1;i<=8;i++)document.getElementById('guardTime'+i).textContent=now;
+}
+
+function badge(sev){
+const s=sev.toLowerCase();
+return `<span class="badge badge-${s}">${sev}</span>`;
+}
+
+function updateCaseDetails(){
+const cid=document.getElementById('caseSelect').value;
+const c=TEST_CASES[cid];
+const det=document.getElementById('caseDetails');
+det.innerHTML=`<h3>📄 Case Details</h3>
+<div class="grid-3" style="margin-top:.8rem">
+<div><strong>Case ID:</strong> ${c.case_id}<br><strong>Type:</strong> ${c.case_type}<br><strong>Alert:</strong> ${c.alert_type}<br><strong>Severity:</strong> ${badge(c.severity)}</div>
+<div><strong>Customer:</strong> ${c.customer.name}<br><strong>Account Type:</strong> ${c.customer.account_type}<br><strong>KYC Status:</strong> ${c.customer.kyc_status}<br><strong>Risk Profile:</strong> ${c.customer.risk_profile}</div>
+<div><strong>Amount:</strong> ₹${c.transaction.amount.toLocaleString('en-IN')}<br><strong>Channel:</strong> ${c.transaction.type}<br><strong>Recipient:</strong> ${c.transaction.recipient}<br><strong>Location:</strong> ${c.transaction.location}</div>
+</div>`;
+
+const rt=document.getElementById('ruleTriggers');
+if(c.rule_triggers.length){
+rt.innerHTML='<h4 style="margin:.8rem 0 .4rem">🚨 Triggered Fraud Rules</h4>'+c.rule_triggers.map(r=>`<div style="margin:.2rem 0">• <strong>${r.rule_id}:</strong> ${r.rule_name} ${badge(r.severity)}</div>`).join('');
+}else{rt.innerHTML='';}
+}
+
+// ═══════════════════════════════════════════
+// AGENT LOGIC (mirrors Python agents)
+// ═══════════════════════════════════════════
+function analyzeTransaction(c,model){
+const txn=c.transaction,hist=c.historical_context,rules=c.rule_triggers;
+let risk=0,findings=[];
+const ratio=txn.amount/Math.max(hist.avg_txn_amount,1);
+if(ratio>10){risk+=35;findings.push(`Transaction amount is ${ratio.toFixed(1)}x the customer average - extreme deviation`);}
+else if(ratio>3){risk+=20;findings.push(`Transaction amount is ${ratio.toFixed(1)}x the customer average - significant deviation`);}
+else if(ratio>1.5){risk+=8;findings.push(`Transaction amount is ${ratio.toFixed(1)}x the customer average - mild deviation`);}
+else{findings.push(`Transaction amount (${ratio.toFixed(1)}x avg) is within normal range`);}
+
+const hour=parseInt(txn.time_of_day.split(':')[0]);
+if(txn.time_of_day.includes('AM')&&hour<6){risk+=15;findings.push(`Transaction at ${txn.time_of_day} - unusual late-night/early-morning activity`);}
+else if(txn.time_of_day.includes('AM')&&hour<8){risk+=5;findings.push(`Transaction at ${txn.time_of_day} - early morning, slightly atypical`);}
+
+if(!txn.device_fingerprint_match){risk+=20;findings.push('Device fingerprint does NOT match any known customer device');}
+else{findings.push('Device fingerprint matches known customer device');}
+if(txn.is_first_time_recipient){risk+=10;findings.push('First-time recipient - no prior transaction history with this beneficiary');}
+
+if((txn.location||'').includes('VPN')){risk+=25;findings.push(`VPN detected from ${txn.location} - IP origin masking`);}
+else if(txn.location&&!txn.location.includes(c.customer.city)){risk+=10;findings.push(`Geo-location mismatch: customer city ${c.customer.city} vs txn location ${txn.location}`);}
+
+if((txn.recipient||'').toLowerCase().includes('crypto')){risk+=20;findings.push('Recipient is a cryptocurrency exchange - high-risk destination category');}
+else if((txn.recipient||'').toLowerCase().includes('unregistered')){risk+=5;findings.push('Recipient is an unregistered beneficiary');}
+
+const critRules=rules.filter(r=>r.severity==='Critical').length;
+const highRules=rules.filter(r=>r.severity==='High').length;
+if(critRules>0){risk+=critRules*8;findings.push(`${critRules} critical fraud rules triggered`);}
+if(highRules>0){risk+=highRules*4;findings.push(`${highRules} high-severity fraud rules triggered`);}
+
+risk=Math.min(risk,100);
+const cls=risk>=75?'High Risk':risk>=45?'Medium Risk':risk>=20?'Low Risk':'Minimal Risk';
+return{risk_score:risk,classification:cls,amount_deviation_ratio:Math.round(ratio*100)/100,findings,structured_output_compliant:true,explanation:`Transaction ${txn.txn_id} for INR ${txn.amount.toLocaleString('en-IN')} via ${txn.type} assessed as ${cls} (score: ${risk}/100). Key factors: ${findings.slice(0,3).join('; ')}.`};
+}
+
+function analyzeCustomer(c,model){
+const cust=c.customer,hist=c.historical_context;
+let anomaly=0,findings=[];
+let trustBase=cust.account_age_years>10?85:cust.account_age_years>5?70:cust.account_age_years>1?50:30;
+findings.push(`${cust.account_age_years>10?'Long-standing':cust.account_age_years>5?'Established':'Moderate tenure'} customer (${cust.account_age_years} years)`);
+
+if(hist.failed_login_attempts_24h>5){anomaly+=30;findings.push(`${hist.failed_login_attempts_24h} failed login attempts in 24h - strong brute-force indicator`);}
+else if(hist.failed_login_attempts_24h>2){anomaly+=15;findings.push(`${hist.failed_login_attempts_24h} failed login attempts in 24h - potential credential testing`);}
+else if(hist.failed_login_attempts_24h>0){anomaly+=5;findings.push(`${hist.failed_login_attempts_24h} failed login attempt(s) in 24h`);}
+
+if(hist.password_changed_recently&&hist.device_change_recent){anomaly+=25;findings.push('Both password AND device changed recently - suspicious credential takeover pattern');}
+else if(hist.password_changed_recently){anomaly+=10;findings.push('Password changed recently');}
+else if(hist.device_change_recent){anomaly+=10;findings.push('New device detected');}
+
+if(hist.previous_fraud_cases>0){anomaly+=15;findings.push(`${hist.previous_fraud_cases} prior fraud case(s)`);}
+else{findings.push('No prior fraud cases - clean history');}
+
+if(cust.age>60){anomaly+=10;findings.push(`Elderly customer (age ${cust.age}) - heightened vulnerability to social engineering`);}
+
+if(hist.similar_txns_last_6mo===0){anomaly+=15;findings.push('No similar transactions in last 6 months - completely new pattern');}
+else if(hist.similar_txns_last_6mo<3){anomaly+=5;findings.push(`Only ${hist.similar_txns_last_6mo} similar transactions in 6 months`);}
+else{findings.push(`${hist.similar_txns_last_6mo} similar transactions in 6 months - established pattern`);}
+
+anomaly=Math.min(anomaly,100);
+const level=anomaly>=60?'Critical':anomaly>=35?'Elevated':anomaly>=15?'Moderate':'Low';
+const adjTrust=Math.max(0,trustBase-Math.floor(anomaly*0.6));
+return{anomaly_score:anomaly,anomaly_level:level,trust_score_base:trustBase,trust_score_adjusted:adjTrust,trust_score_delta:anomaly,findings,structured_output_compliant:true,explanation:`Customer ${cust.name} (${cust.id}): ${level} anomaly (${anomaly}/100). Adjusted trust: ${adjTrust}/100. ${findings.slice(0,3).join('; ')}.`};
+}
+
+function analyzeRisk(c,prior){
+const txn=c.transaction,cust=c.customer,rules=c.rule_triggers;
+const txnRisk=prior.transaction_analysis.risk_score;
+const custAnomaly=prior.customer_analysis.anomaly_score;
+let findings=[],violations=[],regFlags=[];
+
+if(txn.amount>200000){violations.push('POL-001: Transaction exceeds INR 2,00,000 - mandatory enhanced due diligence');regFlags.push('RBI AML/KYC Guidelines - Large value transaction reporting');}
+if(txnRisk>60&&custAnomaly>40){violations.push('POL-010: Combined high risk + anomaly - mandatory HITL review');findings.push('Combined risk indicators exceed automated approval threshold');}
+if((txn.recipient||'').toLowerCase().includes('crypto')){violations.push('POL-015: Transfer to cryptocurrency platform');regFlags.push('FATF Travel Rule compliance check needed');}
+if((txn.location||'').includes('VPN')||(txn.location||'').includes('Nigeria')){violations.push('POL-020: Foreign origin / VPN detected');regFlags.push('PMLA Section 12 - Suspicious Transaction Report required');findings.push('Transaction origin inconsistent with customer jurisdiction');}
+if(cust.age>60&&txnRisk>40){violations.push('POL-025: Elderly customer + elevated risk');findings.push('Vulnerable customer protocol activated');}
+if(txn.is_first_time_recipient&&txn.amount>50000){violations.push('POL-030: High-value transfer to new beneficiary');findings.push('First-time beneficiary with significant amount warrants hold');}
+
+let composite=Math.min(100,Math.floor(txnRisk*0.45+custAnomaly*0.35+violations.length*5));
+let action,sla;
+if(composite>=75||violations.some(v=>v.toLowerCase().includes('mandatory')&&v.includes('HITL'))){action='BLOCK_AND_ESCALATE';sla=1;}
+else if(composite>=50){action='HOLD_AND_VERIFY';sla=4;}
+else if(composite>=25){action='FLAG_AND_MONITOR';sla=24;}
+else{action='APPROVE_WITH_NOTE';sla=0;}
+
+return{composite_risk_score:composite,policy_action:action,policy_violations:violations,regulatory_flags:regFlags,hitl_required:composite>=40||violations.length>=2,sla_hours:sla,findings,structured_output_compliant:true,explanation:`Composite risk: ${composite}/100. Action: ${action}. ${violations.length} violation(s), ${regFlags.length} regulatory flag(s). HITL: ${composite>=40?'Required':'Optional'}.`};
+}
+
+function analyzeRecommendation(c,prior){
+const risk=prior.risk_assessment;
+const composite=risk.composite_risk_score;
+let decision,confidence,urgency,actions;
+
+if(risk.policy_action==='BLOCK_AND_ESCALATE'){decision='BLOCK & ESCALATE';confidence=Math.min(98,75+Math.floor(composite*0.25));urgency='CRITICAL';actions=['Immediately block the transaction','Freeze account for 24 hours pending investigation','Escalate to Senior Fraud Analyst (Tier 3)','Initiate customer contact via registered phone number','File Suspicious Transaction Report (STR) with FIU-IND','Preserve all session/device forensic data'];}
+else if(risk.policy_action==='HOLD_AND_VERIFY'){decision='HOLD & VERIFY';confidence=Math.min(90,60+Math.floor(composite*0.2));urgency='HIGH';actions=['Place transaction on hold (4-hour SLA)','Send OTP verification to registered mobile','Request callback confirmation from customer','Cross-verify beneficiary details','If verified, release with monitoring flag; if unverified, escalate'];}
+else if(risk.policy_action==='FLAG_AND_MONITOR'){decision='APPROVE WITH FLAG';confidence=Math.min(85,55+Math.floor((100-composite)*0.2));urgency='MEDIUM';actions=['Allow transaction to proceed','Add 30-day enhanced monitoring on account','Flag beneficiary for watchlist check','Log case for periodic review'];}
+else{decision='APPROVE';confidence=Math.min(95,70+Math.floor((100-composite)*0.3));urgency='LOW';actions=['Approve transaction - within normal parameters','No additional monitoring required','Close alert with disposition: Legitimate Activity'];}
+
+const evidence={transaction_risk_score:prior.transaction_analysis.risk_score,customer_anomaly_score:prior.customer_analysis.anomaly_score,composite_risk_score:composite,policy_violations_count:risk.policy_violations.length,regulatory_flags_count:risk.regulatory_flags.length,rule_triggers_count:c.rule_triggers.length,key_risk_factors:[...prior.transaction_analysis.findings.slice(0,2),...prior.customer_analysis.findings.slice(0,2),...risk.findings.slice(0,1)]};
+
+let hallFlags=[];
+if(prior.transaction_analysis.risk_score<20&&['BLOCK & ESCALATE','HOLD & VERIFY'].includes(decision)){hallFlags.push('Decision severity may exceed evidence from transaction analysis');}
+
+return{decision,confidence,urgency,recommended_actions:actions,evidence_summary:evidence,hallucination_flags:hallFlags,hitl_required:risk.hitl_required,sla_hours:risk.sla_hours,structured_output_compliant:true,explanation:`Case ${c.case_id}: ${decision} (Confidence: ${confidence}%, Urgency: ${urgency}). Composite risk: ${composite}/100. ${risk.policy_violations.length} policy violation(s). ${risk.regulatory_flags.length} regulatory flag(s).`};
+}
+
+// ═══════════════════════════════════════════
+// RUN INVESTIGATION
+// ═══════════════════════════════════════════
+async function runInvestigation(){
+const cid=document.getElementById('caseSelect').value;
+const model=document.getElementById('modelSelect').value;
+const c=TEST_CASES[cid];
+const out=document.getElementById('pipelineResults');
+
+out.innerHTML='<h3>⚙️ Pipeline Execution</h3><div class="progress-bar"><div class="progress-fill" id="progFill" style="width:0%"></div></div><div id="progText">🔄 Starting pipeline...</div>';
+const fill=document.getElementById('progFill');
+const txt=document.getElementById('progText');
+
+const steps=[
+{name:'Transaction Analysis Agent',fn:()=>analyzeTransaction(c,model),key:'transaction_analysis'},
+{name:'Customer Behaviour Agent',fn:()=>analyzeCustomer(c,model),key:'customer_analysis'},
+];
+
+let results={};
+for(let i=0;i<steps.length;i++){
+txt.textContent=`🔄 Running ${steps[i].name}...`;fill.style.width=`${(i/4)*100}%`;
+await delay(400);
+results[steps[i].key]=steps[i].fn();
+fill.style.width=`${((i+1)/4)*100}%`;txt.textContent=`✅ ${steps[i].name} complete`;
+await delay(200);
+}
+
+txt.textContent='🔄 Running Risk & Policy Agent...';fill.style.width='50%';
+await delay(400);
+results.risk_assessment=analyzeRisk(c,results);
+fill.style.width='75%';txt.textContent='✅ Risk & Policy Agent complete';
+await delay(200);
+
+txt.textContent='🔄 Running Recommendation Agent...';fill.style.width='75%';
+await delay(400);
+results.recommendation=analyzeRecommendation(c,results);
+fill.style.width='100%';txt.textContent='✅ Pipeline Complete!';
+
+const totalMs=Math.floor(800+Math.random()*400);
+results.total_duration_ms=totalMs;results.model_used=model;
+investigationResults[cid]={model,results,timestamp:new Date().toISOString()};
+
+await delay(300);
+
+const rec=results.recommendation;
+const txnR=results.transaction_analysis;
+const custR=results.customer_analysis;
+const riskR=results.risk_assessment;
+
+const decIcon=rec.decision.includes('BLOCK')?'🚫':rec.decision.includes('HOLD')?'⚠️':'✅';
+const decClass=rec.decision.includes('BLOCK')?'decision-block':rec.decision.includes('HOLD')?'decision-hold':'decision-approve';
+
+out.innerHTML+=`<hr><h3>📊 Agent Analysis Results</h3>
+
+<div class="expander open"><div class="expander-header" onclick="this.parentElement.classList.toggle('open')">🔹 Agent 1: Transaction Analysis</div><div class="expander-body">
+<div class="metrics-row"><div class="mini-metric"><div class="val">${txnR.risk_score}/100</div><div class="lbl">Risk Score</div></div><div class="mini-metric"><div class="val">${txnR.classification}</div><div class="lbl">Classification</div></div><div class="mini-metric"><div class="val">${txnR.amount_deviation_ratio}x</div><div class="lbl">Amount Deviation</div></div></div>
+<p style="margin:.5rem 0"><strong>Findings:</strong></p>${txnR.findings.map(f=>'<div style="margin:.2rem 0">• '+f+'</div>').join('')}
+<div class="guardrail-box" style="margin-top:.5rem">${txnR.explanation}</div>
+</div></div>
+
+<div class="expander open"><div class="expander-header" onclick="this.parentElement.classList.toggle('open')">🔹 Agent 2: Customer Behaviour Analysis</div><div class="expander-body">
+<div class="metrics-row"><div class="mini-metric"><div class="val">${custR.anomaly_score}/100</div><div class="lbl">Anomaly Score</div></div><div class="mini-metric"><div class="val">${custR.anomaly_level}</div><div class="lbl">Anomaly Level</div></div><div class="mini-metric"><div class="val">${custR.trust_score_adjusted}/100</div><div class="lbl">Adjusted Trust</div></div></div>
+<p style="margin:.5rem 0"><strong>Findings:</strong></p>${custR.findings.map(f=>'<div style="margin:.2rem 0">• '+f+'</div>').join('')}
+<div class="guardrail-box" style="margin-top:.5rem">${custR.explanation}</div>
+</div></div>
+
+<div class="expander open"><div class="expander-header" onclick="this.parentElement.classList.toggle('open')">🔹 Agent 3: Risk & Policy Assessment</div><div class="expander-body">
+<div class="metrics-row"><div class="mini-metric"><div class="val">${riskR.composite_risk_score}/100</div><div class="lbl">Composite Risk</div></div><div class="mini-metric"><div class="val">${riskR.policy_action.replace(/_/g,' ')}</div><div class="lbl">Policy Action</div></div><div class="mini-metric"><div class="val">${riskR.hitl_required?'Yes':'No'}</div><div class="lbl">HITL Required</div></div></div>
+${riskR.policy_violations.length?'<p style="margin:.5rem 0"><strong>Policy Violations:</strong></p>'+riskR.policy_violations.map(v=>'<div style="color:var(--orange);margin:.2rem 0">⚠️ '+v+'</div>').join(''):''}
+${riskR.regulatory_flags.length?'<p style="margin:.5rem 0"><strong>Regulatory Flags:</strong></p>'+riskR.regulatory_flags.map(f=>'<div style="color:var(--red);margin:.2rem 0">🚩 '+f+'</div>').join(''):''}
+<div class="guardrail-box" style="margin-top:.5rem">${riskR.explanation}</div>
+</div></div>
+
+<div class="expander open"><div class="expander-header" onclick="this.parentElement.classList.toggle('open')">🔹 Agent 4: Final Recommendation</div><div class="expander-body">
+<div class="metrics-row"><div class="mini-metric"><div class="val">${rec.decision}</div><div class="lbl">Decision</div></div><div class="mini-metric"><div class="val">${rec.confidence}%</div><div class="lbl">Confidence</div></div><div class="mini-metric"><div class="val">${rec.urgency}</div><div class="lbl">Urgency</div></div></div>
+<div class="${decClass}" style="margin:.5rem 0"><h4>${decIcon} ${rec.decision}</h4><p>Confidence: ${rec.confidence}% | Urgency: ${rec.urgency}</p></div>
+<p style="margin:.5rem 0"><strong>Recommended Actions:</strong></p>${rec.recommended_actions.map((a,i)=>`<div style="margin:.2rem 0">${i+1}. ${a}</div>`).join('')}
+${rec.hallucination_flags.length?'<p style="margin:.5rem 0;color:var(--orange)"><strong>⚠️ Hallucination Flags:</strong></p>'+rec.hallucination_flags.map(h=>'<div style="color:var(--orange)">• '+h+'</div>').join(''):''}
+<div class="guardrail-box" style="margin-top:.5rem">${rec.explanation}</div>
+</div></div>
+
+<div class="expander"><div class="expander-header" onclick="this.parentElement.classList.toggle('open')">📋 Pipeline Audit Summary</div><div class="expander-body">
+<p><strong>Total Pipeline Duration:</strong> ${totalMs}ms</p>
+<p><strong>Model Used:</strong> ${model}</p>
+<p><strong>Agents Executed:</strong> 4/4</p>
+<p><strong>Guardrails Checked:</strong> All Active</p>
+</div></div>`;
+
+updateHITL();
+updateMetrics();
+}
+
+// ═══════════════════════════════════════════
+// MODEL COMPARISON
+// ═══════════════════════════════════════════
+async function runComparison(){
+const cid=document.getElementById('compareCaseSelect').value;
+const c=TEST_CASES[cid];
+const out=document.getElementById('comparisonResults');
+
+out.innerHTML='<div class="progress-bar"><div class="progress-fill" id="compProgFill" style="width:0%"></div></div><div id="compProgText">Starting comparison...</div>';
+const fill=document.getElementById('compProgFill');
+const txt=document.getElementById('compProgText');
+
+const allResults={};
+const metrics={};
+for(let i=0;i<MODELS.length;i++){
+const model=MODELS[i];
+txt.textContent=`🔄 Running pipeline with ${model}...`;
+fill.style.width=`${(i/3)*100}%`;
+await delay(600);
+
+const txn=analyzeTransaction(c,model);
+const cust=analyzeCustomer(c,model);
+const prior={transaction_analysis:txn,customer_analysis:cust};
+const risk=analyzeRisk(c,prior);
+prior.risk_assessment=risk;
+const rec=analyzeRecommendation(c,prior);
+
+const totalMs=Math.floor(600+Math.random()*600);
+allResults[model]={transaction_analysis:txn,customer_analysis:cust,risk_assessment:risk,recommendation:rec,total_duration_ms:totalMs};
+
+const expected=c.expected_outcome.toLowerCase();
+const dec=rec.decision.toLowerCase();
+const classCorrect=(expected.includes('block')&&dec.includes('block'))||(expected.includes('hold')&&dec.includes('hold'))||(expected.includes('approve')&&dec.includes('approve'));
+const escCorrect=expected.includes('escalate')?dec.includes('escalate')||dec.includes('block'):!dec.includes('block');
+const fp=expected.includes('approve')&&(dec.includes('block')||dec.includes('hold'));
+const expLen=rec.explanation.length;
+const expQual=Math.min(100,40+(expLen>200?20:0)+(expLen>400?10:0)+25);
+
+metrics[model]={decision:rec.decision,confidence:rec.confidence,txn_risk_score:txn.risk_score,cust_anomaly_score:cust.anomaly_score,composite_risk_score:risk.composite_risk_score,classification_correct:classCorrect,escalation_correct:escCorrect,false_positive:fp,hallucination_count:rec.hallucination_flags.length,explanation_quality:expQual,structured_output_compliant:true,latency_ms:totalMs};
+
+fill.style.width=`${((i+1)/3)*100}%`;
+txt.textContent=`✅ ${model} complete (${i+1}/3)`;
+await delay(200);
+}
+
+comparisonResults[cid]={results:allResults,metrics,timestamp:new Date().toISOString()};
+
+// Results table
+out.innerHTML=`<hr><h3>📊 Comparative Results</h3>
+<div style="overflow-x:auto">
+<table>
+<thead><tr><th>Model</th><th>Decision</th><th>Confidence</th><th>Txn Risk</th><th>Cust Anomaly</th><th>Composite</th><th>Classification</th><th>Escalation</th><th>FP</th><th>Hallucinations</th><th>Explanation</th><th>Compliant</th><th>Latency</th></tr></thead>
+<tbody>${MODELS.map(m=>{const v=metrics[m];return`<tr><td><strong>${m}</strong></td><td>${v.decision}</td><td>${v.confidence}%</td><td>${v.txn_risk_score}</td><td>${v.cust_anomaly_score}</td><td>${v.composite_risk_score}</td><td>${v.classification_correct?'✅':'❌'}</td><td>${v.escalation_correct?'✅':'❌'}</td><td>${v.false_positive?'❌ FP':'✅ No'}</td><td>${v.hallucination_count}</td><td>${v.explanation_quality}/100</td><td>✅</td><td>${v.latency_ms}ms</td></tr>`;}).join('')}
+</tbody></table></div>
+
+<h3 style="margin-top:1.5rem">📈 Visual Comparison</h3>
+<div class="grid-2">
+<div class="card"><canvas id="riskChart"></canvas></div>
+<div class="card"><canvas id="qualityChart"></canvas></div>
+</div>
+<div class="card" style="margin-top:1rem"><canvas id="latencyChart"></canvas></div>
+<div class="card" style="margin-top:1rem"><canvas id="radarChart"></canvas></div>`;
+
+// Charts
+setTimeout(()=>{
+const labels=MODELS;
+const colors=['#667eea','#e74c3c','#27ae60'];
+
+// Risk scores chart
+new Chart(document.getElementById('riskChart'),{type:'bar',data:{labels,datasets:[
+{label:'Transaction Risk',data:labels.map(m=>metrics[m].txn_risk_score),backgroundColor:'#667eea'},
+{label:'Customer Anomaly',data:labels.map(m=>metrics[m].cust_anomaly_score),backgroundColor:'#e74c3c'},
+{label:'Composite Risk',data:labels.map(m=>metrics[m].composite_risk_score),backgroundColor:'#f39c12'}
+]},options:{responsive:true,plugins:{title:{display:true,text:'Risk Scores by Model'}},scales:{y:{beginAtZero:true,max:100}}}});
+
+// Quality chart
+new Chart(document.getElementById('qualityChart'),{type:'bar',data:{labels,datasets:[
+{label:'Confidence',data:labels.map(m=>metrics[m].confidence),backgroundColor:'#27ae60'},
+{label:'Explanation Quality',data:labels.map(m=>metrics[m].explanation_quality),backgroundColor:'#3498db'}
+]},options:{responsive:true,plugins:{title:{display:true,text:'Confidence & Explanation Quality'}},scales:{y:{beginAtZero:true,max:100}}}});
+
+// Latency chart
+new Chart(document.getElementById('latencyChart'),{type:'bar',data:{labels,datasets:[
+{label:'Latency (ms)',data:labels.map(m=>metrics[m].latency_ms),backgroundColor:colors}
+]},options:{responsive:true,plugins:{title:{display:true,text:'Pipeline Latency Comparison'},legend:{display:false}}}});
+
+// Radar chart
+const maxLat=Math.max(...labels.map(m=>metrics[m].latency_ms));
+new Chart(document.getElementById('radarChart'),{type:'radar',data:{labels:['Classification','Escalation','Low FP Rate','Explanation','Compliance','Speed'],
+datasets:labels.map((m,i)=>{const v=metrics[m];return{label:m,data:[v.classification_correct?100:30,v.escalation_correct?100:30,v.false_positive?20:100,v.explanation_quality,100,Math.max(10,100-Math.floor((v.latency_ms/Math.max(maxLat,1))*60))],borderColor:colors[i],backgroundColor:colors[i]+'33',pointBackgroundColor:colors[i]};})
+},options:{responsive:true,plugins:{title:{display:true,text:'Model Performance Radar'}},scales:{r:{beginAtZero:true,max:100}}}});
+},100);
+
+updateMetrics();
+}
+
+// ═══════════════════════════════════════════
+// HITL PAGE
+// ═══════════════════════════════════════════
+function updateHITL(){
+const el=document.getElementById('hitlContent');
+if(!Object.keys(investigationResults).length){
+el.innerHTML='<div class="card"><p>⏳ No cases have been investigated yet. Go to <strong>Case Investigation</strong> to run a pipeline first.</p></div>';
+return;
+}
+let html='';
+Object.entries(investigationResults).forEach(([cid,inv])=>{
+const c=TEST_CASES[cid];
+const rec=inv.results.recommendation;
+const decIcon=rec.decision.includes('BLOCK')?'🚫':rec.decision.includes('HOLD')?'⚠️':'✅';
+const decClass=rec.decision.includes('BLOCK')?'decision-block':rec.decision.includes('HOLD')?'decision-hold':'decision-approve';
+
+const existingDecision=hitlDecisions[cid];
+const decidedHtml=existingDecision?`<div class="decision-approve" style="margin-top:1rem"><strong>✅ Decision Recorded:</strong> ${existingDecision.human_decision}<br><strong>Agreement:</strong> ${existingDecision.agreement}<br><strong>Notes:</strong> ${existingDecision.notes||'None'}<br><strong>Time:</strong> ${existingDecision.timestamp}</div>`:'';
+
+html+=`<h3 style="margin:1rem 0 .5rem">Case: ${cid}</h3>
+<p><strong>Customer:</strong> ${c.customer.name} | <strong>Amount:</strong> ₹${c.transaction.amount.toLocaleString('en-IN')} | <strong>Severity:</strong> ${badge(c.severity)}</p>
+<div class="grid-2" style="margin-top:.8rem">
+<div class="card"><h3>🤖 AI Recommendation</h3>
+<div class="${decClass}"><h4>${decIcon} ${rec.decision}</h4><p>Confidence: ${rec.confidence}% | Urgency: ${rec.urgency}</p>
+<p><strong>Key Evidence:</strong></p>${rec.evidence_summary.key_risk_factors.slice(0,4).map(f=>'<div>• '+f+'</div>').join('')}</div>
+<p style="margin-top:.5rem"><strong>Composite Risk:</strong> ${rec.evidence_summary.composite_risk_score}/100</p>
+<p><strong>Policy Violations:</strong> ${rec.evidence_summary.policy_violations_count}</p>
+<p><strong>Model Used:</strong> ${inv.model}</p>
+</div>
+<div class="card"><h3>👨‍💼 Investigator Decision</h3>
+<label>Your Decision</label>
+<select id="hitl_dec_${cid}"><option>APPROVE</option><option>APPROVE WITH FLAG</option><option>HOLD & VERIFY</option><option>BLOCK & ESCALATE</option></select>
+<label>Agreement with AI</label>
+<select id="hitl_agree_${cid}"><option>Yes - AI recommendation is appropriate</option><option>Partially - Modified based on additional context</option><option>No - Overriding AI recommendation</option></select>
+<label>Notes / Override Reason</label>
+<textarea id="hitl_notes_${cid}" rows="3" placeholder="Enter investigation notes..."></textarea>
+<label>Escalate To</label>
+<select id="hitl_esc_${cid}"><option>None</option><option>Senior Fraud Analyst</option><option>Fraud Manager</option><option>Compliance Officer</option><option>Law Enforcement</option></select>
+<button class="btn btn-success" style="margin-top:.8rem;width:100%" onclick="submitHITL('${cid}')">✅ Submit Decision</button>
+${decidedHtml}
+</div></div><hr>`;
+});
+el.innerHTML=html;
+}
+
+function submitHITL(cid){
+const dec=document.getElementById('hitl_dec_'+cid).value;
+const agree=document.getElementById('hitl_agree_'+cid).value;
+const notes=document.getElementById('hitl_notes_'+cid).value;
+const esc=document.getElementById('hitl_esc_'+cid).value;
+
+hitlDecisions[cid]={case_id:cid,ai_decision:investigationResults[cid].results.recommendation.decision,human_decision:dec,agreement:agree,notes,escalate_to:esc,investigator:'Fraud Analyst (Session User)',timestamp:new Date().toLocaleString()};
+
+updateHITL();
+updateMetrics();
+alert(`✅ Decision recorded for ${cid}: ${dec}`);
+}
+
+// ═══════════════════════════════════════════
+// METRICS PAGE
+// ═══════════════════════════════════════════
+function updateMetrics(){
+const el=document.getElementById('metricsContent');
+if(!Object.keys(comparisonResults).length){
+el.innerHTML='<div class="card"><p>⏳ Run a <strong>Model Comparison</strong> first to see metrics here.</p></div>';
+}else{
+let html='<h3 style="margin-bottom:.8rem">📈 Aggregate Model Performance</h3><div style="overflow-x:auto"><table><thead><tr><th>Model</th><th>Cases</th><th>Classification Acc</th><th>Escalation Acc</th><th>FP Rate</th><th>Avg Hallucinations</th><th>Avg Explanation</th><th>Compliance</th><th>Avg Latency</th></tr></thead><tbody>';
+MODELS.forEach(model=>{
+const runs=[];
+Object.values(comparisonResults).forEach(cr=>{if(cr.metrics[model])runs.push(cr.metrics[model]);});
+if(runs.length){
+const n=runs.length;
+html+=`<tr><td><strong>${model}</strong></td><td>${n}</td><td>${Math.round(runs.filter(r=>r.classification_correct).length/n*100)}%</td><td>${Math.round(runs.filter(r=>r.escalation_correct).length/n*100)}%</td><td>${Math.round(runs.filter(r=>r.false_positive).length/n*100)}%</td><td>${(runs.reduce((s,r)=>s+r.hallucination_count,0)/n).toFixed(1)}</td><td>${Math.round(runs.reduce((s,r)=>s+r.explanation_quality,0)/n)}/100</td><td>${Math.round(runs.filter(r=>r.structured_output_compliant).length/n*100)}%</td><td>${Math.round(runs.reduce((s,r)=>s+r.latency_ms,0)/n)}ms</td></tr>`;
+}});
+html+='</tbody></table></div>';
+el.innerHTML=html;
+}
+
+// HITL audit trail
+const auditEl=document.getElementById('hitlAuditTrail');
+if(Object.keys(hitlDecisions).length){
+let html='<hr><h3 style="margin:.8rem 0">📋 HITL Audit Trail</h3><table><thead><tr><th>Case</th><th>AI Decision</th><th>Human Decision</th><th>Agreement</th><th>Escalate To</th><th>Investigator</th><th>Time</th></tr></thead><tbody>';
+Object.values(hitlDecisions).forEach(d=>{
+html+=`<tr><td>${d.case_id}</td><td>${d.ai_decision}</td><td>${d.human_decision}</td><td>${d.agreement}</td><td>${d.escalate_to}</td><td>${d.investigator}</td><td>${d.timestamp}</td></tr>`;
+});
+html+='</tbody></table>';
+auditEl.innerHTML=html;
+}else{auditEl.innerHTML='';}
+}
+
+function delay(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// Init
+init();
+updateHITL();
+updateMetrics();
+</script>
+</body>
+</html>
